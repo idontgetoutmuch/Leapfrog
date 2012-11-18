@@ -1,7 +1,10 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE NoMonomorphismRestriction, TypeFamilies #-}
 
 import qualified Data.Array.Repa as Repa
 import Data.Array.Repa (U(..), Z(..), (:.)(..), (!), All(..), DIM1, DIM2, DIM3, Array)
+
+import qualified Data.Vector as V
+
 type Distance = Double
 type Mass     = Double
 type Force    = Double
@@ -9,7 +12,9 @@ type Velocity = Double
 
 -- Gravitational constant
 -- gConst :: Double
-gConst = 1.0 -- 6.674e-11
+gConst = {- 1.0 --} 6.674e-11
+mSun = 1.9889e30
+dEarth = 1.4960e11
 
 -- Time step
 dt = 0.1
@@ -89,20 +94,38 @@ masses = Repa.fromListUnboxed (Z :. 3) $
 vGrid :: Array U DIM1 Mass -> Array U DIM2 Force -> Array U DIM3 Velocity
 vGrid m f = undefined
 
-class Comonad c where
-  coreturn :: c a -> a
-  (=>>) :: c a -> (c a -> b) -> c b
+class Foo c where
+  type Bar f :: * -> *
+  baz :: c a -> Bar c a
+  cor :: c a -> (c a -> Bar c b) -> c b
 
 data PointedArray a = PointedArray Int (Array Repa.D DIM2 a)
 
 instance Functor PointedArray where
   fmap f (PointedArray i x) = PointedArray i (Repa.map f x)
 
-instance Comonad PointedArray where
-  coreturn (PointedArray i x) = undefined
+instance Foo PointedArray where
+  type Bar PointedArray = Array Repa.D DIM1
+  baz (PointedArray i x) = Repa.slice x (Z :. i :. All)
+  cor (PointedArray i x) f = PointedArray i undefined
 
+x = Repa.fromListUnboxed (Z :. (5 :: Int) :. (3 :: Int)) [1..15]
 
+class Comonad c where
+  coreturn :: c a -> a
+  (=>>) :: c a -> (c a -> b) -> c b
 
+data PointedArray' a = PointedArray' Int (V.Vector a)
+  deriving Show
 
+instance Functor PointedArray' where
+  fmap f (PointedArray' i x) = PointedArray' i (fmap f x)
 
+instance Comonad PointedArray' where
+  coreturn (PointedArray' i x) = x V.! i
+  (PointedArray' i x) =>> f =
+    PointedArray' i (V.map (f . flip PointedArray' x) (V.generate (V.length x) id))
 
+tc :: PointedArray a -> (PointedArray a -> Array Repa.D DIM1 a) -> PointedArray a
+tc (PointedArray i x) f =
+  PointedArray i (Repa.map (f . flip PointedArray x) undefined)

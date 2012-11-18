@@ -1,20 +1,7 @@
 '"Gravitational Collapse: simulating interactions between N bodies"'
 
 import numpy as np
-import pylab as py
-
-# Initial values
-
-N = 2                   # number of bodies
-G = 6.67384e-11         # gravitational constant
-
-t = 24*60*60*30             # total time
-dt = 24*60*60*10             # timestep
-n = int(np.floor(t/dt))      # number of iterations
-m = [5.9742e24, 1.9889e30]  # mass
-eps = 0.0               # softening constant
-max_tolerance = 0.01    # allow 1% change in energy
-
+import foo
 
 initial_positions = np.zeros((N,3))
 initial_positions[0]=[1.496e11,0.,0.]     # earth
