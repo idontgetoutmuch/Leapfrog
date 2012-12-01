@@ -5,6 +5,8 @@ import Data.Array.Repa (U(..), Z(..), (:.)(..), (!), All(..), DIM1, DIM2, DIM3, 
 
 import qualified Data.Vector as V
 
+import Debug.Trace
+
 type Distance = Double
 type Mass     = Double
 type Force    = Double
@@ -79,8 +81,10 @@ forcesV ix positions masses = fs
     m = masses V.! ix
 
     -- Remove the i-th row
+    -- vs :: V.Vector (V.Vector Double)
+    -- vs = sliceDrop ix positions
     vs :: V.Vector (V.Vector Double)
-    vs = sliceDrop ix positions
+    vs = positions
 
     sliceDrop ix ws =
       if V.null ys
@@ -90,7 +94,8 @@ forcesV ix positions masses = fs
         (xs, ys) = V.splitAt ix ws
         
     ms :: V.Vector Double
-    ms = sliceDrop ix masses
+    -- ms = sliceDrop ix masses
+    ms = masses
 
     -- Calculate the pointwise distances between the i-th particle
     -- and the rest of the particles
@@ -110,9 +115,10 @@ forcesV ix positions masses = fs
     fs = V.generate (V.length ds) f
          where
            f :: Int -> V.Vector Double
-           f i =  V.map g (ds V.! i)
-                  where
-                    g x = gConst * x * (m * (ms V.! i) / (dsqs V.! i))
+           f i | i == ix   = V.fromList $ take 3 $ repeat 0.0
+               | otherwise = V.map g (ds V.! i)
+               where
+                 g x = gConst * x * (m * (ms V.! i) / (dsqs V.! i))
 
 data Particle = Particle { position :: (Double, Double, Double), mass :: Double }
                   deriving Show
@@ -136,6 +142,46 @@ masses = Repa.fromListUnboxed (Z :. 3) $
 massVs :: V.Vector Double
 massVs = V.fromList $ map mass particles
 
+data PointedArrayV a = PointedArrayV Int (V.Vector a)
+                       deriving Show
+
+instance Functor PointedArrayV where
+  fmap f (PointedArrayV i v) = PointedArrayV i (fmap f v)
+
+instance Comonad PointedArrayV where
+  coreturn (PointedArrayV i v) = v V.! i
+  (PointedArrayV i v) =>> f =
+    PointedArrayV i (V.map (f . flip PointedArrayV v) (V.generate (V.length v) id))
+
+type PositionV = V.Vector Double
+type VelocityV = V.Vector Double
+
+safeIndex :: Show a => Int -> V.Vector a -> String -> a
+safeIndex i v label = if (i < 0) || (i > V.length v - 1)
+                      then
+                          error $ label ++ " " ++ (show v) ++ " " ++ show i
+                      else
+                          v V.! i
+
+f :: PointedArrayV (PositionV, VelocityV) -> (PositionV, VelocityV)
+f (PointedArrayV i z) = {- error $ show fs --} (u, w)
+                        where
+                          x = V.map fst z
+                          v = V.map snd z
+                          fs = forcesV i x massVs
+                          w = V.zipWith g (fs V.! i) (v V.! i)
+                          u = V.zipWith h (x V.! i) w
+                          g force vel  = vel + force * dt / (massVs V.! i)
+                          h pos vel    = pos + vel * dt
+
+initPos :: [V.Vector Double]
+initPos =  map V.fromList [[1.496e11, 0, 0], [0, 0, 0]]
+
+initVel :: [V.Vector Double]
+initVel =  map V.fromList [[2557.5, 29668.52, 0], [0, 0, 0]]
+
+initPosAndVel :: V.Vector (PositionV, VelocityV)
+initPosAndVel =  V.fromList $ zip initPos initVel
 
 test0 = Repa.computeP $ forces 0 positions masses :: IO (Array U DIM2 Double)
 testV0 = forcesV 0 positionVs massVs
