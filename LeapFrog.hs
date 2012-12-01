@@ -5,6 +5,7 @@ import Data.Array.Repa (U(..), Z(..), (:.)(..), (!), All(..), DIM1, DIM2, DIM3, 
 
 import qualified Data.Vector as V
 
+import Text.PrettyPrint
 import Debug.Trace
 
 type Distance = Double
@@ -14,9 +15,14 @@ type Velocity = Double
 
 -- Gravitational constant
 -- gConst :: Double
-gConst = {- 1.0 --} 6.674e-11
-mSun = 1.9889e30
-dEarth = 1.4960e11
+gConst   = 6.674e-11
+mSun     = 1.9889e30
+mJupiter = 1.8986e27
+mEarth   = 5.9722e24
+
+dEarth   = 1.4960e11
+dSun     = 0.0000e11
+dJupiter = 7.7855e11
 
 -- Time step
 dt = 0.1
@@ -164,12 +170,16 @@ safeIndex i v label = if (i < 0) || (i > V.length v - 1)
                           v V.! i
 
 f :: PointedArrayV (PositionV, VelocityV) -> (PositionV, VelocityV)
-f (PointedArrayV i z) = {- error $ show fs --} (u, w)
+f (PointedArrayV i z) = trace ("Index:\n" ++ show i ++ "\n" ++
+                               "New Vel:\n" ++ show w ++ "\n" ++
+                               "Forces:\n" ++ show fs) $ (u, w)
                         where
                           x = V.map fst z
                           v = V.map snd z
+                          fs :: V.Vector (V.Vector Double)
                           fs = forcesV i x massVs
-                          w = V.zipWith g (fs V.! i) (v V.! i)
+                          f = V.foldr (V.zipWith (+)) (V.fromList [0.0, 0.0, 0.0]) fs
+                          w = V.zipWith g f {- (fs V.! i) -} (v V.! i)
                           u = V.zipWith h (x V.! i) w
                           g force vel  = vel + force * dt / (massVs V.! i)
                           h pos vel    = pos + vel * dt
@@ -182,6 +192,12 @@ initVel =  map V.fromList [[2557.5, 29668.52, 0], [0, 0, 0]]
 
 initPosAndVel :: V.Vector (PositionV, VelocityV)
 initPosAndVel =  V.fromList $ zip initPos initVel
+
+prettyPointedArrayV :: PointedArrayV (PositionV, VelocityV) -> String
+prettyPointedArrayV (PointedArrayV i x) = render d
+    where
+      (u, v) = x V.! i
+      d = text (show $ V.toList u) <+> text (show $ V.toList v)
 
 test0 = Repa.computeP $ forces 0 positions masses :: IO (Array U DIM2 Double)
 testV0 = forcesV 0 positionVs massVs
