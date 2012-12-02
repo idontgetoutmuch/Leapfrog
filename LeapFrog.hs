@@ -1,8 +1,5 @@
 {-# LANGUAGE NoMonomorphismRestriction, TypeFamilies #-}
 
-import qualified Data.Array.Repa as Repa
-import Data.Array.Repa (U(..), Z(..), (:.)(..), (!), All(..), DIM1, DIM2, DIM3, Array)
-
 import qualified Data.Vector as V
 
 import Text.PrettyPrint
@@ -13,8 +10,6 @@ type Mass     = Double
 type Force    = Double
 type Velocity = Double
 
--- Gravitational constant
--- gConst :: Double
 gConst   = 6.674e-11
 mSun     = 1.9889e30
 mJupiter = 1.8986e27
@@ -24,57 +19,7 @@ dEarth   = 1.4960e11
 dSun     = 0.0000e11
 dJupiter = 7.7855e11
 
--- Time step
 dt = 0.1
-
--- forces :: Int -> Array U DIM2 Distance ->
---              Array U DIM1 Mass ->
---              Array Repa.D DIM2 Double
-forces ix positions masses = fs
-  where
-    -- Get the dimensions of the array
-    -- dx, dy :: Int
-    Z :. dx :. dy = Repa.extent positions
-    
-    -- Get the i-th row
-    -- v :: Array Repa.D DIM1 Double
-    v  = Repa.slice positions (Z :. ix :. All)
-
-    -- m :: Double
-    m = masses!(Z :. ix)
-
-    -- Remove the i-th row
-    -- vs :: Array Repa.D DIM2 Double
-    vs = Repa.fromFunction (Z :. dx - 1 :. dy)
-                           (\(Z :. jx :. kx) -> positions ! (Z :. f jx :. kx))
-           where
-             f jx | jx < ix   = jx
-                  | otherwise = jx + 1
-
-    -- ms :: Array Repa.D DIM1 Double
-    ms = Repa.fromFunction (Z :. dx - 1)
-                               (\(Z :. jx) -> masses ! (Z :. f jx))
-               where
-                 f jx | jx < ix   = jx
-                      | otherwise = jx + 1
-
-    -- Calculate the pointwise distances between the i-th particle
-    -- and the rest of the particles
-    -- ds :: Array Repa.D DIM2 Double
-    ds = Repa.traverse vs id (\f (Z :. ix :. jx) -> g jx $ f (Z :. ix :. jx))
-           where
-             g jx x = x - v!(Z :. jx)
-
-    -- Calculate the sum of the squares of the distances between the
-    -- i-th particle and the rest of the particles and "normalize"
-    -- dsqs :: Array Repa.D DIM1 Double
-    dsqs = Repa.map (**(3/2)) $ Repa.foldS (+) 0 $ Repa.map (^2) ds
-
-    -- Calculate the forces on the i-th particle
-    -- fs :: Array Repa.D DIM2 Double
-    fs = Repa.traverse ds id (\f (Z :. iy :. jy) -> g iy $ f (Z :. iy :. jy))
-           where
-             g iy x = gConst * x * m * ms!(Z :. iy) / dsqs!(Z :. iy)
 
 forcesV :: Int -> V.Vector (V.Vector Double) -> V.Vector Double -> V.Vector (V.Vector Double)
 forcesV ix positions masses = fs
@@ -129,21 +74,13 @@ forcesV ix positions masses = fs
 data Particle = Particle { position :: (Double, Double, Double), mass :: Double }
                   deriving Show
 
-particles = [ Particle { position = ( 0.0, 0.0, 0.0), mass = 2.0 }
-            , Particle { position = (10.0, 0.0, 0.0), mass = 3.0 }
-            , Particle { position = (-10.0, 0.0, 0.0), mass = 3.0 }
+particles = [ Particle { position = ( 0.0, 0.0, 0.0) , mass = mEarth   }
+            , Particle { position = (10.0, 0.0, 0.0) , mass = mSun     }
+            , Particle { position = (-10.0, 0.0, 0.0), mass = mJupiter }
             ]
-
-positions :: Array U DIM2 Double
-positions = Repa.fromListUnboxed (Z :. (3 :: Int) :. (3 :: Int)) $
-             concatMap ((\(x, y, z) -> [x, y, z]) . position) particles
 
 positionVs :: V.Vector (V.Vector Double)
 positionVs = V.fromList $ map V.fromList $ map ((\(x, y, z) -> [x, y, z]) . position) particles
-
-masses :: Array U DIM1 Double
-masses = Repa.fromListUnboxed (Z :. 3) $
-         map mass particles
 
 massVs :: V.Vector Double
 massVs = V.fromList $ map mass particles
@@ -171,8 +108,10 @@ safeIndex i v label = if (i < 0) || (i > V.length v - 1)
 
 f :: PointedArrayV (PositionV, VelocityV) -> (PositionV, VelocityV)
 f (PointedArrayV i z) = trace ("Index:\n" ++ show i ++ "\n" ++
+                               "Old Vel:\n" ++ show v ++"\n" ++
                                "New Vel:\n" ++ show w ++ "\n" ++
-                               "Forces:\n" ++ show fs) $ (u, w)
+                               "Forces:\n" ++ show fs ++ "\n" ++
+                               "Total force:\n" ++ show f) $ (u, w)
                         where
                           x = V.map fst z
                           v = V.map snd z
@@ -199,62 +138,10 @@ prettyPointedArrayV (PointedArrayV i x) = render d
       (u, v) = x V.! i
       d = text (show $ V.toList u) <+> text (show $ V.toList v)
 
-test0 = Repa.computeP $ forces 0 positions masses :: IO (Array U DIM2 Double)
 testV0 = forcesV 0 positionVs massVs
-test1 = Repa.computeP $ forces 1 positions masses :: IO (Array U DIM2 Double)
 testV1 = forcesV 1 positionVs massVs
-test2 = Repa.computeP $ forces 2 positions masses :: IO (Array U DIM2 Double)
 testV2 = forcesV 2 positionVs massVs
-
--- For each time step we have a 3 by n array. Thus if we have m time
--- steps we have a m by 3 by n array.
-
-vGrid :: Array U DIM1 Mass -> Array U DIM2 Force -> Array U DIM3 Velocity
-vGrid m f = undefined
-
-class Foo c where
-  type Bar f :: * -> *
-  baz :: c a -> Bar c a
-  cor :: c a -> (c a -> Bar c b) -> c b
-
-data PointedArray a = PointedArray Int (Array Repa.D DIM2 a)
-
-instance Functor PointedArray where
-  fmap f (PointedArray i x) = PointedArray i (Repa.map f x)
-
-instance Foo PointedArray where
-  type Bar PointedArray = Array Repa.D DIM1
-  baz (PointedArray i x) = Repa.slice x (Z :. i :. All)
-  cor (PointedArray i x) f = PointedArray i undefined
-
-x = Repa.fromListUnboxed (Z :. (5 :: Int) :. (3 :: Int)) [1..15]
 
 class Comonad c where
   coreturn :: c a -> a
   (=>>) :: c a -> (c a -> b) -> c b
-
-data PointedArray' a = PointedArray' Int (V.Vector a)
-  deriving Show
-
-instance Functor PointedArray' where
-  fmap f (PointedArray' i x) = PointedArray' i (fmap f x)
-
-instance Comonad PointedArray' where
-  coreturn (PointedArray' i x) = x V.! i
-  (PointedArray' i x) =>> f =
-    PointedArray' i (V.map (f . flip PointedArray' x) (V.generate (V.length x) id))
-
--- tc :: PointedArray a -> (PointedArray a -> Array Repa.D DIM1 a) -> PointedArray a
--- tc (PointedArray i x) f =
---   PointedArray i (Repa.map (f . flip PointedArray x) undefined)
-
-
-xs = Repa.fromListUnboxed (Z :. 3) [1, 2, 3]
-
-removeOne ix xs = Repa.fromFunction (Z :. dx - 1) (\(Z :. jx) -> xs ! (Z :. f jx))
-       where
-         Z :. dx = Repa.extent xs
-         f jx | jx < ix   = jx
-              | otherwise = jx + 1
-
-test = Repa.computeP $ removeOne 1 xs :: IO (Array U DIM1 Float)
