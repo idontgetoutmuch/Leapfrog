@@ -1,8 +1,8 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing -fno-warn-type-defaults #-}
 
+import Text.Printf
 import qualified Data.Vector as V
-
-import Text.PrettyPrint
 
 type Distance = Double
 type Mass     = Double
@@ -26,14 +26,42 @@ dJupiter = 7.7855e11
 secondsPerDay :: Double
 secondsPerDay = 24*60*60
 
+timeStepDays :: Time
+timeStepDays = 0.01
+
+nTimeSteps :: Int
+nTimeSteps = floor $ 365 / timeStepDays
+
 dt :: Time
-dt = 10 * secondsPerDay
+dt = timeStepDays * secondsPerDay
 
 type PositionV = V.Vector Distance
 type VelocityV = V.Vector Velocity
 
 zeroV :: V.Vector Double
 zeroV = V.fromList [0.0, 0.0, 0.0]
+
+initPos :: [PositionV]
+initPos = take 2 $ positionVs
+initVel :: [VelocityV]
+initVel =  map V.fromList [[2557.5, 29668.52, 0], [0, 0, 0]]
+initPosAndVel :: V.Vector (PositionV, VelocityV)
+initPosAndVel =  V.fromList $ zip initPos initVel
+
+data Particle = Particle { position :: (Double, Double, Double), mass :: Double }
+                  deriving Show
+
+particles :: [Particle]
+particles = [ Particle { position = (dEarth,    0.0, 0.0), mass = mEarth   }
+            , Particle { position = (dSun,      0.0, 0.0), mass = mSun     }
+            , Particle { position = (-dJupiter, 0.0, 0.0), mass = mJupiter }
+            ]
+
+positionVs :: [V.Vector Double]
+positionVs = map V.fromList $ map ((\(x, y, z) -> [x, y, z]) . position) particles
+
+massVs :: V.Vector Double
+massVs = V.fromList $ map mass particles
 
 forcesV :: Int -> V.Vector (V.Vector Distance) -> V.Vector Mass -> V.Vector (V.Vector Force)
 forcesV ix positions masses = fs
@@ -55,25 +83,10 @@ forcesV ix positions masses = fs
     fs = V.generate (V.length ds) f
          where
            f :: Int -> V.Vector Double
-           f i | i == ix   = V.fromList $ take 3 $ repeat 0.0
+           f i | i == ix   = zeroV
                | otherwise = V.map g (ds V.! i)
                where
                  g x = gConst * x * (m * (masses V.! i) / (dsqs V.! i))
-
-data Particle = Particle { position :: (Double, Double, Double), mass :: Double }
-                  deriving Show
-
-particles :: [Particle]
-particles = [ Particle { position = ( 0.0, 0.0, 0.0) , mass = mEarth   }
-            , Particle { position = (10.0, 0.0, 0.0) , mass = mSun     }
-            , Particle { position = (-10.0, 0.0, 0.0), mass = mJupiter }
-            ]
-
-positionVs :: V.Vector (V.Vector Double)
-positionVs = V.fromList $ map V.fromList $ map ((\(x, y, z) -> [x, y, z]) . position) particles
-
-massVs :: V.Vector Double
-massVs = V.fromList $ map mass particles
 
 data PointedArrayV a = PointedArrayV Int (V.Vector a)
                        deriving Show
@@ -81,40 +94,35 @@ data PointedArrayV a = PointedArrayV Int (V.Vector a)
 instance Functor PointedArrayV where
   fmap f (PointedArrayV i v) = PointedArrayV i (fmap f v)
 
+class Comonad c where
+  coreturn :: c a -> a
+  (=>>) :: c a -> (c a -> b) -> c b
+
 instance Comonad PointedArrayV where
   coreturn (PointedArrayV i v) = v V.! i
   (PointedArrayV i v) =>> f =
     PointedArrayV i (V.map (f . flip PointedArrayV v) (V.generate (V.length v) id))
 
-f :: PointedArrayV (PositionV, VelocityV) -> (PositionV, VelocityV)
-f (PointedArrayV i z) = (newPos, newVel)
-                        where
-                          x = V.map fst z
-                          v = V.map snd z
-                          fs = forcesV i x massVs
-                          totalForce = V.foldr (V.zipWith (+)) zeroV fs
-                          newVel = V.zipWith g totalForce (v V.! i)
-                          newPos = V.zipWith h (x V.! i) newVel
-                          g force vel  = vel + force * dt / (massVs V.! i)
-                          h pos vel    = pos + vel * dt
+oneStep :: PointedArrayV (PositionV, VelocityV) -> (PositionV, VelocityV)
+oneStep (PointedArrayV i z) =
+  (newPos, newVel)
+      where
+        oldPos = V.map fst z
+        oldVel = V.map snd z
 
-initPos, initVel :: [V.Vector Double]
-initPos =  map V.fromList [[1.496e11, 0, 0], [0, 0, 0]]
-initVel =  map V.fromList [[2557.5, 29668.52, 0], [0, 0, 0]]
-initPosAndVel :: V.Vector (PositionV, VelocityV)
-initPosAndVel =  V.fromList $ zip initPos initVel
+        fs         = forcesV i oldPos massVs
+        totalForce = V.foldr (V.zipWith (+)) zeroV fs
 
-prettyPointedArrayV :: PointedArrayV (PositionV, VelocityV) -> String
-prettyPointedArrayV (PointedArrayV i x) = render d
-    where
-      (u, v) = x V.! i
-      d = text (show $ V.toList u) <+> text (show $ V.toList v)
+        newVel = V.zipWith updateVel totalForce (oldVel V.! i)
+        newPos = V.zipWith updatePos (oldPos V.! i) newVel
 
-testV0, testV1, testV2 :: V.Vector (V.Vector Double)
-testV0 = forcesV 0 positionVs massVs
-testV1 = forcesV 1 positionVs massVs
-testV2 = forcesV 2 positionVs massVs
+        updateVel force vel  = vel + force * dt / (massVs V.! i)
+        updatePos pos vel    = pos + vel * dt
 
-class Comonad c where
-  coreturn :: c a -> a
-  (=>>) :: c a -> (c a -> b) -> c b
+test :: IO ()
+test = mapM_ putStrLn $
+       map (f . fst . coreturn) $
+       take nTimeSteps $
+       iterate (=>> oneStep) (PointedArrayV 0 initPosAndVel)
+  where
+    f x = printf "%.5e, %.5e, %.5e" (x V.! 0) (x V.! 1) (x V.! 2)
