@@ -1,5 +1,3 @@
-{-# LANGUAGE NoMonomorphismRestriction, TypeFamilies #-}
-
 import qualified Data.Vector as V
 
 import Text.PrettyPrint
@@ -19,57 +17,33 @@ dEarth   = 1.4960e11
 dSun     = 0.0000e11
 dJupiter = 7.7855e11
 
-dt = 0.1
+secondsPerDay = 24*60*60
+dt            = 10 * secondsPerDay
 
 forcesV :: Int -> V.Vector (V.Vector Double) -> V.Vector Double -> V.Vector (V.Vector Double)
 forcesV ix positions masses = fs
   where
-    -- Get the i-th row
-    v :: V.Vector Double
     v = positions V.! ix
-
-    m :: Double
-    m = masses V.! ix
-
-    -- Remove the i-th row
-    -- vs :: V.Vector (V.Vector Double)
-    -- vs = sliceDrop ix positions
-    vs :: V.Vector (V.Vector Double)
-    vs = positions
-
-    sliceDrop ix ws =
-      if V.null ys
-        then xs
-        else xs V.++ (V.tail ys)
-      where
-        (xs, ys) = V.splitAt ix ws
-        
-    ms :: V.Vector Double
-    -- ms = sliceDrop ix masses
-    ms = masses
+    m = masses    V.! ix
 
     -- Calculate the pointwise distances between the i-th particle
     -- and the rest of the particles
-    ds :: V.Vector (V.Vector Double)
-    ds = V.zipWith (V.zipWith (-)) vs (V.replicate (V.length vs) v)
+    ds = V.zipWith (V.zipWith (-)) positions (V.replicate (V.length positions) v)
 
     -- Calculate the sum of the squares of the distances between the
     -- i-th particle and the rest of the particles and "normalize"
-    dsqs :: V.Vector Double
     dsqs = V.map f ds
            where
-             f :: V.Vector Double -> Double
              f x = (**(3/2)) $ V.sum $ V.map (^2) x
 
     -- Calculate the forces on the i-th particle
-    fs :: V.Vector (V.Vector Double)
     fs = V.generate (V.length ds) f
          where
            f :: Int -> V.Vector Double
            f i | i == ix   = V.fromList $ take 3 $ repeat 0.0
                | otherwise = V.map g (ds V.! i)
                where
-                 g x = gConst * x * (m * (ms V.! i) / (dsqs V.! i))
+                 g x = gConst * x * (m * (masses V.! i) / (dsqs V.! i))
 
 data Particle = Particle { position :: (Double, Double, Double), mass :: Double }
                   deriving Show
@@ -99,26 +73,15 @@ instance Comonad PointedArrayV where
 type PositionV = V.Vector Double
 type VelocityV = V.Vector Double
 
-safeIndex :: Show a => Int -> V.Vector a -> String -> a
-safeIndex i v label = if (i < 0) || (i > V.length v - 1)
-                      then
-                          error $ label ++ " " ++ (show v) ++ " " ++ show i
-                      else
-                          v V.! i
-
 f :: PointedArrayV (PositionV, VelocityV) -> (PositionV, VelocityV)
-f (PointedArrayV i z) = trace ("Index:\n" ++ show i ++ "\n" ++
-                               "Old Vel:\n" ++ show v ++"\n" ++
-                               "New Vel:\n" ++ show w ++ "\n" ++
-                               "Forces:\n" ++ show fs ++ "\n" ++
-                               "Total force:\n" ++ show f) $ (u, w)
+f (PointedArrayV i z) = (u, w)
                         where
                           x = V.map fst z
                           v = V.map snd z
                           fs :: V.Vector (V.Vector Double)
                           fs = forcesV i x massVs
                           f = V.foldr (V.zipWith (+)) (V.fromList [0.0, 0.0, 0.0]) fs
-                          w = V.zipWith g f {- (fs V.! i) -} (v V.! i)
+                          w = V.zipWith g f (v V.! i)
                           u = V.zipWith h (x V.! i) w
                           g force vel  = vel + force * dt / (massVs V.! i)
                           h pos vel    = pos + vel * dt
