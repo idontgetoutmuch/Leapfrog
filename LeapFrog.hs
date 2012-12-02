@@ -1,26 +1,41 @@
+{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing -fno-warn-type-defaults #-}
+
 import qualified Data.Vector as V
 
 import Text.PrettyPrint
-import Debug.Trace
 
 type Distance = Double
 type Mass     = Double
 type Force    = Double
 type Velocity = Double
+type Time     = Double
 
+gConst :: Double
 gConst   = 6.674e-11
+
+mSun, mJupiter, mEarth :: Mass
 mSun     = 1.9889e30
 mJupiter = 1.8986e27
 mEarth   = 5.9722e24
 
+dEarth, dSun, dJupiter :: Distance
 dEarth   = 1.4960e11
 dSun     = 0.0000e11
 dJupiter = 7.7855e11
 
+secondsPerDay :: Double
 secondsPerDay = 24*60*60
-dt            = 10 * secondsPerDay
 
-forcesV :: Int -> V.Vector (V.Vector Double) -> V.Vector Double -> V.Vector (V.Vector Double)
+dt :: Time
+dt = 10 * secondsPerDay
+
+type PositionV = V.Vector Distance
+type VelocityV = V.Vector Velocity
+
+zeroV :: V.Vector Double
+zeroV = V.fromList [0.0, 0.0, 0.0]
+
+forcesV :: Int -> V.Vector (V.Vector Distance) -> V.Vector Mass -> V.Vector (V.Vector Force)
 forcesV ix positions masses = fs
   where
     v = positions V.! ix
@@ -48,6 +63,7 @@ forcesV ix positions masses = fs
 data Particle = Particle { position :: (Double, Double, Double), mass :: Double }
                   deriving Show
 
+particles :: [Particle]
 particles = [ Particle { position = ( 0.0, 0.0, 0.0) , mass = mEarth   }
             , Particle { position = (10.0, 0.0, 0.0) , mass = mSun     }
             , Particle { position = (-10.0, 0.0, 0.0), mass = mJupiter }
@@ -70,28 +86,21 @@ instance Comonad PointedArrayV where
   (PointedArrayV i v) =>> f =
     PointedArrayV i (V.map (f . flip PointedArrayV v) (V.generate (V.length v) id))
 
-type PositionV = V.Vector Double
-type VelocityV = V.Vector Double
-
 f :: PointedArrayV (PositionV, VelocityV) -> (PositionV, VelocityV)
-f (PointedArrayV i z) = (u, w)
+f (PointedArrayV i z) = (newPos, newVel)
                         where
                           x = V.map fst z
                           v = V.map snd z
-                          fs :: V.Vector (V.Vector Double)
                           fs = forcesV i x massVs
-                          f = V.foldr (V.zipWith (+)) (V.fromList [0.0, 0.0, 0.0]) fs
-                          w = V.zipWith g f (v V.! i)
-                          u = V.zipWith h (x V.! i) w
+                          totalForce = V.foldr (V.zipWith (+)) zeroV fs
+                          newVel = V.zipWith g totalForce (v V.! i)
+                          newPos = V.zipWith h (x V.! i) newVel
                           g force vel  = vel + force * dt / (massVs V.! i)
                           h pos vel    = pos + vel * dt
 
-initPos :: [V.Vector Double]
+initPos, initVel :: [V.Vector Double]
 initPos =  map V.fromList [[1.496e11, 0, 0], [0, 0, 0]]
-
-initVel :: [V.Vector Double]
 initVel =  map V.fromList [[2557.5, 29668.52, 0], [0, 0, 0]]
-
 initPosAndVel :: V.Vector (PositionV, VelocityV)
 initPosAndVel =  V.fromList $ zip initPos initVel
 
@@ -101,6 +110,7 @@ prettyPointedArrayV (PointedArrayV i x) = render d
       (u, v) = x V.! i
       d = text (show $ V.toList u) <+> text (show $ V.toList v)
 
+testV0, testV1, testV2 :: V.Vector (V.Vector Double)
 testV0 = forcesV 0 positionVs massVs
 testV1 = forcesV 1 positionVs massVs
 testV2 = forcesV 2 positionVs massVs
