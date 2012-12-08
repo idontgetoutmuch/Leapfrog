@@ -48,7 +48,9 @@ initVel =  map V.fromList [[2557.5, 29668.52, 0], [0, 0, 0]]
 initPosAndVel :: V.Vector (PositionV, VelocityV)
 initPosAndVel =  V.fromList $ zip initPos initVel
 
-data Particle = Particle { position :: (Double, Double, Double), mass :: Double }
+data Particle = Particle { position :: (Double, Double, Double)
+                         , mass :: Double
+                         }
                   deriving Show
 
 particles :: [Particle]
