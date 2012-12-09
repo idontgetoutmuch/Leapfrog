@@ -6,13 +6,13 @@ First some necessary preamble and imports
 > import Text.Printf
 > import qualified Data.Vector as V
 
-It's easy to confuse units so we define some type synomyms to help (of
-course having these checked by machine would be better).
+It's easy to confuse units so we define some type synomyms to help. Of
+course having these checked by machine would be better.
 
 > type Distance = Double
 > type Mass     = Double
 > type Force    = Double
-> type Velocity = Double
+> type Speed    = Double
 > type Time     = Double
 
 We model the positions and velocities of the planets as vectors of
@@ -20,9 +20,9 @@ precisley 3 elements each. Again we would like this invariant to be
 checked by machine.
 
 > type PositionV = V.Vector Distance
-> type VelocityV = V.Vector Velocity
+> type VelocityV = V.Vector Speed
 
-No type synonym for the gravitational constant type.
+No type synonym for the gravitational constant type
 
 > gConst :: Double -- N (m / kg)^2
 > gConst   = 6.674e-11
@@ -37,13 +37,47 @@ No type synonym for the gravitational constant type.
 
 The perihelia of the planets in which we are interested.
 
-> dEarth, dSun, dJupiter :: Distance
-> dEarth   = 1.4960e11
-> dSun     = 0.0000e11
-> dJupiter = 7.7855e11
+> dEarthPeri, dSun, dJupiterPeri :: Distance
+> dEarthPeri   = 1.496000e11
+> dSun         = 0.000000e11
+> dJupiterPeri = 7.405736e11
+
+Various other planetary observations.
+
+> dJupiterAp        = 8.165208e11
+> jupiterEccentrity = 0.048775
+> jupiterA          = (dJupiterAp + dJupiterPeri) / 2
+
+FIXME: Explain n!
+
+> n :: Double
+> n = sqrt $ gConst * mSun / jupiterA^3
+
+Finally we can calculate Jupiter's velocity by assuming that its perihelion on the $x$-axis and then its velocity in the $x$ direction must be $0$.
+
+> thetaDotP = n * jupiterA^2 * sqrt (1 - jupiterEccentrity^2) / dJupiterPeri^2 -- radians per second
+> jupiterV = (0.0, thetaDotP * dJupiterPeri, 0.0)
+
+The zero vector.
 
 > zeroV :: V.Vector Double
 > zeroV = V.fromList [0.0, 0.0, 0.0]
+
+> data Planet = Planet { position :: (Double, Double, Double)
+>                      , velocity :: (Speed, Speed, Speed)
+>                      , mass :: Double
+>                      }
+>                   deriving Show
+
+> planets :: [Planet]
+> planets = [ Planet { position = (dEarthPeri,    0.0, 0.0)
+>                    , velocity = (2557.5, 29668.52, 0)
+>                    , mass = mEarth   }
+>           , Planet { position = (dSun,      0.0, 0.0)
+>                    , velocity = (0.0, 0.0, 0.0)
+>                    , mass = mSun     }
+>           , Planet { position = (-dJupiterPeri, 0.0, 0.0), mass = mJupiter }
+>           ]
 
 > initPos :: [PositionV]
 > initPos = take 2 $ positionVs
@@ -52,22 +86,11 @@ The perihelia of the planets in which we are interested.
 > initPosAndVel :: V.Vector (PositionV, VelocityV)
 > initPosAndVel =  V.fromList $ zip initPos initVel
 
-> data Particle = Particle { position :: (Double, Double, Double)
->                          , mass :: Double
->                          }
->                   deriving Show
-
-> particles :: [Particle]
-> particles = [ Particle { position = (dEarth,    0.0, 0.0), mass = mEarth   }
->             , Particle { position = (dSun,      0.0, 0.0), mass = mSun     }
->             , Particle { position = (-dJupiter, 0.0, 0.0), mass = mJupiter }
->             ]
-
 > positionVs :: [V.Vector Double]
-> positionVs = map V.fromList $ map ((\(x, y, z) -> [x, y, z]) . position) particles
+> positionVs = map V.fromList $ map ((\(x, y, z) -> [x, y, z]) . position) planets
 > 
 > massVs :: V.Vector Double
-> massVs = V.fromList $ map mass particles
+> massVs = V.fromList $ map mass planets
 > 
 > forcesV :: Int -> V.Vector (V.Vector Distance) -> V.Vector Mass -> V.Vector (V.Vector Force)
 > forcesV ix positions masses = fs
@@ -76,11 +99,11 @@ The perihelia of the planets in which we are interested.
 >     m = masses    V.! ix
 > 
 >     -- Calculate the pointwise distances between the i-th particle
->     -- and the rest of the particles
+>     -- and the rest of the planets
 >     ds = V.zipWith (V.zipWith (-)) positions (V.replicate (V.length positions) v)
 > 
 >     -- Calculate the sum of the squares of the distances between the
->     -- i-th particle and the rest of the particles and "normalize"
+>     -- i-th particle and the rest of the planets and "normalize"
 >     dsqs = V.map f ds
 >            where
 >              f x = (**(3/2)) $ V.sum $ V.map (^2) x
@@ -134,11 +157,12 @@ The perihelia of the planets in which we are interested.
 >         updateVel force vel  = vel + force * dt / (massVs V.! i)
 >         updatePos pos vel    = pos + vel * dt
 
-test :: IO ()
-test = mapM_ putStrLn $
-       map (f . fst . coreturn) $
-       take nTimeSteps $
-       iterate (=>> oneStep) (PointedArrayV 0 initPosAndVel)
-  where
-    f x = printf "%.5e, %.5e, %.5e" (x V.! 0) (x V.! 1) (x V.! 2)
+> test :: IO ()
+> test = mapM_ putStrLn $
+>        map (f . fst . coreturn) $
+>        take nTimeSteps $
+>        iterate (=>> oneStep) (PointedArrayV 0 initPosAndVel)
+>   where
+>     f x = printf "%.5e, %.5e, %.5e" (x V.! 0) (x V.! 1) (x V.! 2)
+
 \end{code}
