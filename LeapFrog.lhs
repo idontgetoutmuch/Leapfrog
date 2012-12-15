@@ -1,4 +1,40 @@
-First some necessary preamble and imports
+\documentclass[12pt]{article}
+%include polycode.fmt
+\usepackage[pdftex,pagebackref,letterpaper=true,colorlinks=true,pdfpagemode=none,urlcolor=blue,linkcolor=blue,citecolor=blue,pdfstartview=FitH]{hyperref}
+
+\usepackage{amsmath,amsfonts}
+\usepackage{graphicx}
+\usepackage{color}
+
+\setlength{\oddsidemargin}{0pt}
+\setlength{\evensidemargin}{0pt}
+\setlength{\textwidth}{6.0in}
+\setlength{\topmargin}{0in}
+\setlength{\textheight}{8.5in}
+
+\setlength{\parindent}{0in}
+\setlength{\parskip}{5px}
+
+\newcommand{\half}{\frac{1}{2}}
+\newcommand{\cobind}{\mathbin{=\mkern-6.7mu>\!\!\!>}}
+
+%format =>> = "\cobind "
+
+\begin{document}
+
+We wish to model planetary motion using the
+href{http://en.wikipedia.org/wiki/Leapfrog_integration}{\{em leapfrog}
+method}. This is preferred to other numerical methods as it maintains the total energy of the system.
+
+In essence, we have to update the position and velocity of each planet half a time step out of phase (hence the name leapfrog) as shown below. 
+
+\begin{align*}
+x_i &= x_{i-1} + v_{i - \frac{1/2}}\Delta t \\
+a_i &= F(x_i) \\
+v_{i + \frac{1}{2]} = v_{i - \frac{1}{2}) + a_i\Delta t
+\end{align*}
+
+First some necessary preamble and imports.
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing -fno-warn-type-defaults #-}
@@ -22,7 +58,8 @@ checked by machine.
 > type PositionV = V.Vector Distance
 > type VelocityV = V.Vector Speed
 
-No type synonym for the gravitational constant type
+It's not worth giving a type synonym for the gravitational constant
+type.
 
 > gConst :: Double -- N (m / kg)^2
 > gConst   = 6.674e-11
@@ -44,8 +81,11 @@ The perihelia of the planets in which we are interested.
 
 Various other planetary observations.
 
+> dJupiterAp :: Distance
 > dJupiterAp        = 8.165208e11
+> jupiterEccentrity :: Double
 > jupiterEccentrity = 0.048775
+> jupiterA :: Distance
 > jupiterA          = (dJupiterAp + dJupiterPeri) / 2
 
 FIXME: Explain n!
@@ -53,9 +93,16 @@ FIXME: Explain n!
 > n :: Double
 > n = sqrt $ gConst * mSun / jupiterA^3
 
-Finally we can calculate Jupiter's velocity by assuming that its perihelion on the $x$-axis and then its velocity in the $x$ direction must be $0$.
+Finally we can calculate Jupiter's velocity by assuming that its
+perihelion is on the $x$-axis and that its velocity in the $x$
+direction must be $0$.
 
+FIXME: Actually we need the velocity to be one time step before the
+perihelion.
+
+> thetaDotP :: Double
 > thetaDotP = n * jupiterA^2 * sqrt (1 - jupiterEccentrity^2) / dJupiterPeri^2 -- radians per second
+> jupiterV :: (Speed, Speed, Speed)
 > jupiterV = (0.0, thetaDotP * dJupiterPeri, 0.0)
 
 The zero vector.
@@ -63,52 +110,71 @@ The zero vector.
 > zeroV :: V.Vector Double
 > zeroV = V.fromList [0.0, 0.0, 0.0]
 
-> data Planet = Planet { position :: (Double, Double, Double)
+For convenience we collect all the relevant data about a planet into a
+record.
+
+> data Planet = Planet { position :: (Distance, Distance, Distance)
 >                      , velocity :: (Speed, Speed, Speed)
 >                      , mass :: Double
 >                      }
 >                   deriving Show
-
+>
 > planets :: [Planet]
-> planets = [ Planet { position = (dEarthPeri,    0.0, 0.0)
+> planets = [ Planet { position = (dEarthPeri, 0.0, 0.0)
 >                    , velocity = (2557.5, 29668.52, 0)
->                    , mass = mEarth   }
+>                    , mass = mEarth
+>                    }
 >           , Planet { position = (dSun,      0.0, 0.0)
 >                    , velocity = (0.0, 0.0, 0.0)
->                    , mass = mSun     }
->           , Planet { position = (-dJupiterPeri, 0.0, 0.0), mass = mJupiter }
+>                    , mass = mSun
+>                    }
+>           , Planet { position = (-dJupiterPeri, 0.0, 0.0)
+>                    , velocity = jupiterV
+>                    , mass = mJupiter
+>                    }
 >           ]
 
+
+We want to calculate with vectors not lists.
+
+> tripleToVec :: (Double, Double, Double) -> V.Vector Double
+> tripleToVec (x, y, z) = V.fromList [x, y, z]
+
 > initPos :: [PositionV]
-> initPos = take 2 $ positionVs
+> initPos = take 2 $ map (tripleToVec . position) planets
 > initVel :: [VelocityV]
-> initVel =  map V.fromList [[2557.5, 29668.52, 0], [0, 0, 0]]
+> initVel = take 2 $ map (tripleToVec . velocity) planets
+
 > initPosAndVel :: V.Vector (PositionV, VelocityV)
 > initPosAndVel =  V.fromList $ zip initPos initVel
 
-> positionVs :: [V.Vector Double]
-> positionVs = map V.fromList $ map ((\(x, y, z) -> [x, y, z]) . position) planets
-> 
-> massVs :: V.Vector Double
+> massVs :: V.Vector Mass
 > massVs = V.fromList $ map mass planets
+
+Calculate the force on the $i$-th planet. We could improve the efficiency of this by noting that the force on the $i$-th planet by the $j$-th planet is the same as the force of the $j$-th planet on the $i$-th planet.
+
 > 
 > forcesV :: Int -> V.Vector (V.Vector Distance) -> V.Vector Mass -> V.Vector (V.Vector Force)
 > forcesV ix positions masses = fs
 >   where
 >     v = positions V.! ix
 >     m = masses    V.! ix
-> 
->     -- Calculate the pointwise distances between the i-th particle
->     -- and the rest of the planets
+
+Calculate the pointwise distances between the $i$-th particle
+and the rest of the planets. It's a bit of a nuisance to have to explicitly lift arithmetic operators explicitly to operate on vectors; we could avoid this by using typeclasses.
+
 >     ds = V.zipWith (V.zipWith (-)) positions (V.replicate (V.length positions) v)
-> 
->     -- Calculate the sum of the squares of the distances between the
->     -- i-th particle and the rest of the planets and "normalize"
+
+Calculate the sum of the squares of the distances between the
+$i$-th particle and the rest of the planets and "normalize".
+
 >     dsqs = V.map f ds
 >            where
->              f x = (**(3/2)) $ V.sum $ V.map (^2) x
+>              f x =  (V.sum $ V.map (^2) x) ** (3/2)
 > 
->     -- Calculate the forces on the i-th particle
+
+Calculate the forces on the $i$-th particle.
+
 >     fs = V.generate (V.length ds) f
 >          where
 >            f :: Int -> V.Vector Double
@@ -117,8 +183,12 @@ The zero vector.
 >                where
 >                  g x = gConst * x * (m * (masses V.! i) / (dsqs V.! i))
 
+We make the a timeslice of our calculation an array of the state (positions and velocities) of the planets with a distinguished planet.
+
 > data PointedArrayV a = PointedArrayV Int (V.Vector a)
 >                        deriving Show
+
+And declare this as a functor and a comonad with the usual comonad defintion.
 
 > instance Functor PointedArrayV where
 >   fmap f (PointedArrayV i v) = PointedArrayV i (fmap f v)
@@ -132,8 +202,10 @@ The zero vector.
 >   (PointedArrayV i v) =>> f =
 >     PointedArrayV i (V.map (f . flip PointedArrayV v) (V.generate (V.length v) id))
 
+Now we are ready to move the planets forward in the orbits one step at a time.
+
 > timeStepDays :: Time
-> timeStepDays = 0.01
+> timeStepDays = 10.0
 
 > nTimeSteps :: Int
 > nTimeSteps = floor $ 365 / timeStepDays
@@ -157,6 +229,8 @@ The zero vector.
 >         updateVel force vel  = vel + force * dt / (massVs V.! i)
 >         updatePos pos vel    = pos + vel * dt
 
+Finally we can run our planetary system.
+
 > test :: IO ()
 > test = mapM_ putStrLn $
 >        map (f . fst . coreturn) $
@@ -165,4 +239,7 @@ The zero vector.
 >   where
 >     f x = printf "%.5e, %.5e, %.5e" (x V.! 0) (x V.! 1) (x V.! 2)
 
-\end{code}
+We can check our solution is working as expected by calculating the
+total energy and checking that it remains roughly constant.
+
+\end{document}
