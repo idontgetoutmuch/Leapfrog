@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts #-}
 
 import Data.Array.Repa as Repa
 
@@ -49,11 +49,16 @@ randomPoss n r = fromListUnboxed (Z :. n :. space) $
 
 startPoss = randomPoss nBodies r
 
-extraDim :: Array U (Z :. Int :. Int) Double -> Array D (Z :.Int :. Int :. Int) Double
+extraDim :: Source a Double => Array a (Z :. Int :. Int) Double -> Array D (Z :.Int :. Int :. Int) Double
 extraDim a = extend (Any :. i :. All) a
             where (Z :. i :. j) = extent a
 
-extraDim' :: Array D (Z :. Int :. Int) Double -> Array D (Z :.Int :. Int :. Int) Double
+extraDim1 :: Source a Double =>
+             Array a (Z :. Int) Double -> Array D (Z :. Int :. Int) Double
+extraDim1 a = extend (Any :. i :. All) a
+            where (Z :. i) = extent a
+
+extraDim' :: Source a Double => Array a (Z :. Int :. Int) Double -> Array D (Z :.Int :. Int :. Int) Double
 extraDim' a = extend (Any :. (3 :: Int)) a
             where (Z :. i :. j) = extent a
 
@@ -76,11 +81,28 @@ forces qs = Repa.map (* (negate g)) $ Repa.zipWith (/) (pointDiffs qs) ds
              Repa.map (^2) $
              pointDiffs qs
 
+forces' qs ms = Repa.zipWith (*) fs is 
+  where ds = extraDim' $
+             Repa.map sqrt $
+             Repa.map (+ (eps^2)) $
+             foldS (+) 0 $
+             Repa.map (^2) $
+             pointDiffs qs
+        ns = extraDim1 ms
+        is = extraDim' $ Repa.zipWith (*) ns (transpose ns)
+        fs = Repa.map (* (negate g)) $ Repa.zipWith (/) (pointDiffs qs) ds
+
+masses = extraDim1 $ fromListUnboxed (Z :. (2 :: Int)) [3,5]
+
+masses3 = extraDim' massesL
+
+massesL = Repa.zipWith (*) masses (transpose masses)
+
 testParticles :: Array U (Z :. Int :. Int) Double
 testParticles = fromListUnboxed (Z :. (4 ::Int) :. (3 :: Int)) [1..12]
 
 testParticles2 :: Array U (Z :. Int :. Int) Double
-testParticles2 = fromListUnboxed (Z :. (2 ::Int) :. (3 :: Int)) [1,2,3,5,7,11]
+testParticles2 = fromListUnboxed (Z :. (2 ::Int) :. (3 :: Int)) [1,1,1,2,2,2]
 
 testParticles3 :: Array U (Z :. Int :. Int) Double
 testParticles3 = fromListUnboxed (Z :. (3 ::Int) :. (3 :: Int)) [1,2,3,5,7,11,13,17,19]
@@ -88,20 +110,9 @@ testParticles3 = fromListUnboxed (Z :. (3 ::Int) :. (3 :: Int)) [1,2,3,5,7,11,13
 type Result = IO (Array U (Z :. Int :. Int :. Int) Double)
 
 main = do mn <- computeP m :: IO (Array U (Z :. Int) Double)
+          putStrLn $ "Base data..."
           putStrLn $ show mn
-          -- dm <- distances startPoss :: IO (Array U (Z :. Int) Double)
-          -- putStrLn $ show dm
-          -- pm <- computeP positions :: IO (Array U (Z :. Int :. Int) Double)
-          -- putStrLn $ show pm
-
           putStrLn $ show testParticles2
-          tpcm <- computeP $ extraDim testParticles2 :: Result
-          putStrLn $ show tpcm
-          rcm <- computeP $ transpose3 $ extraDim $ testParticles2 :: Result
-          putStrLn $ show rcm
-          diffs <- computeP $ pointDiffs testParticles2 :: Result
-          putStrLn $ show diffs
-          dsm <- computeP $ distances testParticles2 :: IO (Array U (Z :. Int :. Int) Double)
-          putStrLn $ show dsm
-          fsm <- computeP $ forces testParticles2 :: Result
+          putStrLn $ "Forces..."           
+          fsm <- computeP $ forces' testParticles2 m :: Result
           putStrLn $ show fsm
