@@ -49,20 +49,32 @@ randomPoss n r = fromListUnboxed (Z :. n :. space) $
 
 startPoss = randomPoss nBodies r
 
-distances ps = computeP $ Repa.map sqrt $ sumS $ Repa.map (^2) ps
-
-forces ps ms = pointDiffs ps
-  where
-
-
-cube' :: Array U (Z :. Int :. Int) Double -> Array D (Z :.Int :. Int :. Int) Double
-cube' a = extend (Any :. i :. All) a
+extraDim :: Array U (Z :. Int :. Int) Double -> Array D (Z :.Int :. Int :. Int) Double
+extraDim a = extend (Any :. i :. All) a
             where (Z :. i :. j) = extent a
 
-replicants' ps = backpermute (f e) f ps
+extraDim' :: Array D (Z :. Int :. Int) Double -> Array D (Z :.Int :. Int :. Int) Double
+extraDim' a = extend (Any :. (3 :: Int)) a
+            where (Z :. i :. j) = extent a
+
+transpose3 ps = backpermute (f e) f ps
                    where
                      e = extent ps
                      f (Z :. i :. i' :. j) = Z :. i' :. i :. j
+
+pointDiffs ps = Repa.zipWith (-) qs (transpose3 qs)
+                  where qs = extraDim ps
+
+distances = f
+  where f = Repa.map sqrt . foldS (+) 0 . Repa.map (^2) . pointDiffs
+
+forces qs = Repa.map (* (negate g)) $ Repa.zipWith (/) (pointDiffs qs) ds
+  where ds = extraDim' $
+             Repa.map sqrt $
+             Repa.map (+ (eps^2)) $
+             foldS (+) 0 $
+             Repa.map (^2) $
+             pointDiffs qs
 
 testParticles :: Array U (Z :. Int :. Int) Double
 testParticles = fromListUnboxed (Z :. (4 ::Int) :. (3 :: Int)) [1..12]
@@ -72,8 +84,6 @@ testParticles2 = fromListUnboxed (Z :. (2 ::Int) :. (3 :: Int)) [1,2,3,5,7,11]
 
 testParticles3 :: Array U (Z :. Int :. Int) Double
 testParticles3 = fromListUnboxed (Z :. (3 ::Int) :. (3 :: Int)) [1,2,3,5,7,11,13,17,19]
-
-pointDiffs ps = Repa.zipWith (-) (cube' ps) (replicants' $ cube' ps)
 
 type Result = IO (Array U (Z :. Int :. Int :. Int) Double)
 
@@ -85,9 +95,13 @@ main = do mn <- computeP m :: IO (Array U (Z :. Int) Double)
           -- putStrLn $ show pm
 
           putStrLn $ show testParticles2
-          tpcm <- computeP $ cube' testParticles2 :: Result
+          tpcm <- computeP $ extraDim testParticles2 :: Result
           putStrLn $ show tpcm
-          rcm <- computeP $ replicants' $ cube' $ testParticles2 :: Result
+          rcm <- computeP $ transpose3 $ extraDim $ testParticles2 :: Result
           putStrLn $ show rcm
-          diffs <- computeP $ pointDiffs testParticles3 :: Result
+          diffs <- computeP $ pointDiffs testParticles2 :: Result
           putStrLn $ show diffs
+          dsm <- computeP $ distances testParticles2 :: IO (Array U (Z :. Int :. Int) Double)
+          putStrLn $ show dsm
+          fsm <- computeP $ forces testParticles2 :: Result
+          putStrLn $ show fsm
