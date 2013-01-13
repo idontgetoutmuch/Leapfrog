@@ -51,31 +51,13 @@ startPoss = randomPoss nBodies r
 
 distances ps = computeP $ Repa.map sqrt $ sumS $ Repa.map (^2) ps
 
-forces ps ms = undefined
+forces ps ms = pointDiffs ps
   where
-    ds = Repa.zipWith (-) ps (twizzle ps)
 
-twizzle ps = traverse ps id (\f (Z :. i :. j) -> f (Z :. (i + 1) `mod` nBodies :. j))
-
-positions = Repa.zipWith (-) startPoss startPoss
-
-cube :: Array D (Z :.Int :. Int :. Int) Double
-cube = extend (Any :. i :. All) startPoss
-         where (Z :. i :. j) = extent startPoss
 
 cube' :: Array U (Z :. Int :. Int) Double -> Array D (Z :.Int :. Int :. Int) Double
 cube' a = extend (Any :. i :. All) a
             where (Z :. i :. j) = extent a
-
-twizzleds ps = backpermute e f ps
-                 where
-                   e = extent ps
-                   f (Z :. i :. i' :. j) = Z :. (i + 1) `mod` nBodies :. i' :. j
-
-replicants ps = backpermute (f e) f ps
-                  where
-                    e = extent ps
-                    f (Z :. i :. i' :. j) = Z :. i :. j :. i'
 
 replicants' ps = backpermute (f e) f ps
                    where
@@ -85,7 +67,15 @@ replicants' ps = backpermute (f e) f ps
 testParticles :: Array U (Z :. Int :. Int) Double
 testParticles = fromListUnboxed (Z :. (4 ::Int) :. (3 :: Int)) [1..12]
 
-pointDiffs ps = Repa.zipWith (-) (replicants $ cube' ps) (replicants' $ cube' ps)
+testParticles2 :: Array U (Z :. Int :. Int) Double
+testParticles2 = fromListUnboxed (Z :. (2 ::Int) :. (3 :: Int)) [1,2,3,5,7,11]
+
+testParticles3 :: Array U (Z :. Int :. Int) Double
+testParticles3 = fromListUnboxed (Z :. (3 ::Int) :. (3 :: Int)) [1,2,3,5,7,11,13,17,19]
+
+pointDiffs ps = Repa.zipWith (-) (cube' ps) (replicants' $ cube' ps)
+
+type Result = IO (Array U (Z :. Int :. Int :. Int) Double)
 
 main = do mn <- computeP m :: IO (Array U (Z :. Int) Double)
           putStrLn $ show mn
@@ -93,27 +83,11 @@ main = do mn <- computeP m :: IO (Array U (Z :. Int) Double)
           -- putStrLn $ show dm
           -- pm <- computeP positions :: IO (Array U (Z :. Int :. Int) Double)
           -- putStrLn $ show pm
-          -- tm <- computeP $ twizzle startPoss :: IO (Array U (Z :. Int :. Int) Double)
-          -- putStrLn $ show tm
-          -- putStrLn $ show startPoss
-          -- em <- computeP $ extend (Any :. (5 :: Int) :. All) (randomPoss 3 10) :: IO (Array U (Z :. Int :. Int :. Int) Double)
-          -- putStrLn $ show em
-          -- cm <- computeP cube :: IO (Array U (Z :. Int :. Int :. Int) Double)
-          -- putStrLn $ show cm
 
-          putStrLn $ show testParticles
-          tpcm <- computeP $ cube' testParticles :: IO (Array U (Z :. Int :. Int :. Int) Double)
+          putStrLn $ show testParticles2
+          tpcm <- computeP $ cube' testParticles2 :: Result
           putStrLn $ show tpcm
-          tcm <- computeP $ twizzleds $ cube' $ testParticles :: IO (Array U (Z :. Int :. Int :. Int) Double)
-          putStrLn $ show tcm
-          rcm <- computeP $ replicants $ cube' $ testParticles :: IO (Array U (Z :. Int :. Int :. Int) Double)
-          putStrLn $ show tcm
-
-foo :: IO (Array U (Z :. Int) Double)
-foo = computeP $ slice (randomPoss nBodies r) (Z :. (0 :: Int) :. All)
-
-bar ps = traverse ps (\x@(Z :. i :. j) -> (Z :. i))
-                     (\f (Z :. i) -> f (Z :.i :. (0 :: Int)))
-
-baz :: IO (Array U (Z :. Int) Double)
-baz = computeP $ bar startPoss
+          rcm <- computeP $ replicants' $ cube' $ testParticles2 :: Result
+          putStrLn $ show rcm
+          diffs <- computeP $ pointDiffs testParticles3 :: Result
+          putStrLn $ show diffs
