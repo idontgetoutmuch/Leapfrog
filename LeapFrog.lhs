@@ -15,17 +15,26 @@
 \setlength{\parindent}{0in}
 \setlength{\parskip}{5px}
 
+\newcommand{\half}{\frac{1}{2}}
+\newcommand{\cobind}{\mathbin{=\mkern-6.7mu>\!\!\!>}}
+
+%format =>> = "\cobind "
+
 \begin{document}
 
 We wish to model planetary motion using the
-\href{http://en.wikipedia.org/wiki/Leapfrog_integration}{{\em leapfrog}} method. This is preferred to other numerical methods as it maintains the total energy of the system.
+\href{http://en.wikipedia.org/wiki/Leapfrog_integration}{{\em
+leapfrog}} method. This is preferred to other numerical methods as it
+maintains the total energy of the system.
 
-In essence, we have to update the position and velocity of each planet half a time step out of phase (hence the name leapfrog) as shown below. 
+In essence, we have to update the position and velocity of each planet
+half a time step out of phase (hence the name leapfrog) as shown
+below.
 
 \begin{align*}
-x_i &= x_{i-1} + v_{i - \frac{1/2}}\Delta t \\
-a_i &= F(x_i) \\
-v_{i + \frac{1}{2]} = v_{i - \frac{1}{2}) + a_i\Delta t
+x_i                 &= x_{i-1} + v_{i - \frac{1}{2}}\Delta t \\
+a_i                 &= F(x_i) \\
+v_{i + \frac{1}{2}} &= v_{i - \frac{1}{2}} + a_i\Delta t
 \end{align*}
 
 First some necessary preamble and imports.
@@ -90,8 +99,6 @@ dJupiterAp :: Distance
 dJupiterAp        = 8.165208e11
 jupiterEccentrity :: Double
 jupiterEccentrity = 0.048775
-jupiterA :: Distance
-jupiterA          = (dJupiterAp + dJupiterPeri) / 2
 \end{code}
 
 FIXME: Explain n!
@@ -101,6 +108,17 @@ n :: Double
 n = sqrt $ gConst * mSun / jupiterA^3
 \end{code}
 
+
+We use Kepler's laws to calculate the initial conditions:
+
+\begin{align*}
+r &= \frac{a(1 - e^2)}{1 - e\cos\theta} \\
+r^2\dot{\theta} &= \sqrt{(1 - e^2)}na^2 \\
+GM_{\rm Sun} &= n^2a^3
+\end{align*}
+
+where $G$ is the gravitational constant, $n = \frac{2\pi}{T}$ is the mean angular orbital velocity, $a$ is the major access of the planet's ellipse and $e$ is the eccentricity.
+
 Finally we can calculate Jupiter's velocity by assuming that its
 perihelion is on the $x$-axis and that its velocity in the $x$
 direction must be $0$.
@@ -109,8 +127,12 @@ FIXME: Actually we need the velocity to be one time step before the
 perihelion.
 
 \begin{code}
+jupiterA :: Distance
+jupiterA          = (dJupiterAp + dJupiterPeri) / 2
+
 thetaDotP :: Double
 thetaDotP = n * jupiterA^2 * sqrt (1 - jupiterEccentrity^2) / dJupiterPeri^2 -- radians per second
+deltaThetaP = thetaDotP * dt / 2
 jupiterV :: (Speed, Speed, Speed)
 jupiterV = (0.0, thetaDotP * dJupiterPeri, 0.0)
 \end{code}
