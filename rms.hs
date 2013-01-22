@@ -1,6 +1,8 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeOperators #-}
 
-import Data.Array.Repa as Repa
+{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing -fno-warn-type-defaults #-}
+
+import Data.Array.Repa as Repa hiding ((++))
 
 import Data.Random ()
 import Data.Random.Distribution.Uniform
@@ -10,28 +12,30 @@ import System.Random
 import Control.Monad
 import Control.Monad.State
 
+import Debug.Trace
+
 space :: Int
 space = 3
 
 g = 6.67384e-11             -- gravitational constant
 max_tolerance = 0.1         -- allow 10% change in energy
 k = 24*60*60                -- seconds in a day
-   
+
 -- Initial values
 r = 1e1                    -- radius of sphere particles contained in
 eps = 0.1*r                 -- softening constant
 days = 36500*100            -- total time in days
-t = days*k                  -- total time 
+t = days*k                  -- total time
 timestep_days = 10          -- timestep in days
-dt = timestep_days*k        -- timestep 
+dt = timestep_days*k        -- timestep
 nIters = floor (t/dt)       -- number of iterations
 
 nBodies :: Int
-nBodies = 4                -- number of bodies 
+nBodies = 3                -- number of bodies
 mass = 1e24                 -- mass
 
 -- array of equal masses
-m = Repa.map (mass*) $ 
+m = Repa.map (mass*) $
     fromListUnboxed (Z :. nBodies) $
     take nBodies $ repeat 1.0
 
@@ -45,7 +49,7 @@ rands n a b =
 randomPoss :: Int -> Double -> Array U (Z :. Int :. Int) Double
 randomPoss n r = fromListUnboxed (Z :. n :. space) $
                  Prelude.map (fromIntegral . round) $
-                 rands (3*n) 0 r 
+                 rands (3*n) 0 r
 
 startPoss = randomPoss nBodies r
 
@@ -73,15 +77,10 @@ pointDiffs ps = Repa.zipWith (-) qs (transpose3 qs)
 distances = f
   where f = Repa.map sqrt . foldS (+) 0 . Repa.map (^2) . pointDiffs
 
-forces qs = Repa.map (* (negate g)) $ Repa.zipWith (/) (pointDiffs qs) ds
-  where ds = extraDim' $
-             Repa.map sqrt $
-             Repa.map (+ (eps^2)) $
-             foldS (+) 0 $
-             Repa.map (^2) $
-             pointDiffs qs
-
-forces' qs ms = Repa.zipWith (*) fs is 
+forces' :: (Source a Double, Source b Double) =>
+           Array a DIM2 Double -> Array b DIM1 Double ->
+           Array D DIM3 Double
+forces' qs ms = Repa.zipWith (*) fs is
   where ds = extraDim' $
              Repa.map sqrt $
              Repa.map (+ (eps^2)) $
@@ -91,12 +90,6 @@ forces' qs ms = Repa.zipWith (*) fs is
         ns = extraDim1 ms
         is = extraDim' $ Repa.zipWith (*) ns (transpose ns)
         fs = Repa.map (* (negate g)) $ Repa.zipWith (/) (pointDiffs qs) ds
-
-masses = extraDim1 $ fromListUnboxed (Z :. (2 :: Int)) [3,5]
-
-masses3 = extraDim' massesL
-
-massesL = Repa.zipWith (*) masses (transpose masses)
 
 testParticles :: Array U (Z :. Int :. Int) Double
 testParticles = fromListUnboxed (Z :. (4 ::Int) :. (3 :: Int)) [1..12]
@@ -109,10 +102,11 @@ testParticles3 = fromListUnboxed (Z :. (3 ::Int) :. (3 :: Int)) [1,2,3,5,7,11,13
 
 type Result = IO (Array U (Z :. Int :. Int :. Int) Double)
 
+main :: IO ()
 main = do mn <- computeP m :: IO (Array U (Z :. Int) Double)
           putStrLn $ "Base data..."
           putStrLn $ show mn
-          putStrLn $ show testParticles2
-          putStrLn $ "Forces..."           
-          fsm <- computeP $ forces' testParticles2 m :: Result
+          putStrLn $ show testParticles3
+          putStrLn $ "Forces..."
+          fsm <- computeP $ forces' testParticles3 m :: Result
           putStrLn $ show fsm
