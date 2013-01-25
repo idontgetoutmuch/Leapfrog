@@ -53,21 +53,28 @@ Some physical constants for our system.
 g, k :: Double
 g = 6.67384e-11             -- gravitational constant
 k = 24*60*60                -- seconds in a day
-
--- Initial values
 r = 1e1                    -- radius of sphere particles contained in
+
+nBodies :: Int
+nBodies = 3                -- number of bodies
+mass = 1e24                 -- mass
+\end{code}
+
+And some constants for our finite difference method.
+
+\begin{code}
 eps = 0.1*r                 -- softening constant
 days = 36500*100            -- total time in days
 t = days*k                  -- total time
 timestep_days = 10          -- timestep in days
 dt = timestep_days*k        -- timestep
 nIters = floor (t/dt)       -- number of iterations
+\end{code}
 
-nBodies :: Int
-nBodies = 3                -- number of bodies
-mass = 1e24                 -- mass
+We represent our system aof bodies of identical mass as a
+1-dimensional (unboxed) array.
 
--- array of equal masses
+\begin{code}
 m = Repa.map (mass*) $
     fromListUnboxed (Z :. nBodies) $
     take nBodies $ repeat 1.0
@@ -77,15 +84,26 @@ rands n a b =
   fst $ runState (replicateM n (sampleRVar (uniform a b))) (mkStdGen seed)
     where
       seed = 0
+\end{code}
 
--- The random position is in a box r^3
-randomPoss :: Int -> Double -> Array U (Z :. Int :. Int) Double
+We assign our bodies random positions inside a box using a
+2-dimensional (unboxed) array.
+
+\begin{code}
+randomPoss :: Int -> Double -> Array U DIM2 Double
 randomPoss n r = fromListUnboxed (Z :. n :. space) $
                  Prelude.map (fromIntegral . round) $
                  rands (space * n) 0 r
 
 startPoss = randomPoss nBodies r
+\end{code}
 
+We wish to calculate a two dimensional array of forces where each
+force is itself a one dimensional vector of three elements (in the
+case of the three dimensional Euclidean space in which we are
+operating).
+
+\begin{code}
 extraDim :: Source a Double =>
             Array a DIM2 Double -> Array D DIM3 Double
 extraDim a = extend (Any :. i :. All) a
@@ -112,11 +130,6 @@ pointDiffs :: Source a Double =>
 pointDiffs ps = Repa.zipWith (-) qs (transposeInner qs)
                   where qs = extraDim ps
 \end{code}
-
-We wish to calculate a two dimensional array of forces where each
-force is itself a one dimensional vector of three elements (in the
-case of the three dimensional Euclidean space in which we are
-operating).
 
 \begin{code}
 forces :: (Source a Double, Source b Double) =>
