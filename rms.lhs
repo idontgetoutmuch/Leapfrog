@@ -18,6 +18,8 @@
 \newcommand{\half}{\frac{1}{2}}
 \newcommand{\cobind}{\mathbin{=\mkern-6.7mu>\!\!\!>}}
 
+\newcommand{\vec}[1]{\boldsymbol{#1}}
+
 %format =>> = "\cobind "
 
 \begin{document}
@@ -103,6 +105,10 @@ force is itself a one dimensional vector of three elements (in the
 case of the three dimensional Euclidean space in which we are
 operating).
 
+$$
+F_i = G\Sigma_{j\neq i} -m_i m_j\frac{\vec{r}_i - \vec{r}_j}{1}
+$$
+
 \begin{code}
 extraDim :: Source a Double =>
             Array a DIM2 Double -> Array D DIM3 Double
@@ -110,7 +116,7 @@ extraDim a = extend (Any :. i :. All) a
             where (Z :. i :. j) = extent a
 
 extraDim1 :: Source a Double =>
-             Array a (Z :. Int) Double -> Array D (Z :. Int :. Int) Double
+             Array a DIM1 Double -> Array D DIM2 Double
 extraDim1 a = extend (Any :. i :. All) a
                 where (Z :. i) = extent a
 
@@ -146,19 +152,19 @@ forces qs ms = Repa.zipWith (*) fs is
         is = extraDim' $ Repa.zipWith (*) ns (transpose ns)
         fs = Repa.map (* (negate g)) $ Repa.zipWith (/) (pointDiffs qs) ds
 
-testParticles :: Array U (Z :. Int :. Int) Double
+testParticles :: Array U DIM2 Double
 testParticles = fromListUnboxed (Z :. (4 ::Int) :. space) [1..12]
 
-testParticles2 :: Array U (Z :. Int :. Int) Double
+testParticles2 :: Array U DIM2 Double
 testParticles2 = fromListUnboxed (Z :. (2 ::Int) :. space) [1,1,1,2,2,2]
 
-testParticles3 :: Array U (Z :. Int :. Int) Double
+testParticles3 :: Array U DIM2 Double
 testParticles3 = fromListUnboxed (Z :. (3 ::Int) :. space) [1,2,3,5,7,11,13,17,19]
 
-type Result = IO (Array U (Z :. Int :. Int :. Int) Double)
+type Result = IO (Array U DIM3 Double)
 
 main :: IO ()
-main = do mn <- computeP m :: IO (Array U (Z :. Int) Double)
+main = do mn <- computeP m :: IO (Array U DIM1 Double)
           putStrLn $ "Base data..."
           putStrLn $ show mn
           putStrLn $ show testParticles3
