@@ -16,8 +16,6 @@
 > import Control.Monad
 > import Control.Monad.State
 
-> import Debug.Trace
-
 We work in a 3 dimensional Euclidean space.
 
 > spaceDim :: Int
@@ -25,27 +23,31 @@ We work in a 3 dimensional Euclidean space.
 
 Some physical constants for our system.
 
-> g, k :: Double
+> g, k, r, mass :: Double
 > g = 6.67384e-11             -- gravitational constant
 > k = 24*60*60                -- seconds in a day
-> r = 1e1                    -- radius of sphere particles contained in
+> r = 1e1                     -- radius of sphere particles contained in
+> mass = 1e24                 -- mass
 
 > nBodies :: Int
 > nBodies = 3                -- number of bodies
-> mass = 1e24                 -- mass
 
 And some constants for our finite difference method.
 
+> eps, days, t, timestepDays,dt :: Double
 > eps = 0.1*r                 -- softening constant
 > days = 36500*100            -- total time in days
 > t = days*k                  -- total time
-> timestep_days = 10          -- timestep in days
-> dt = timestep_days*k        -- timestep
+> timestepDays = 10           -- timestep in days
+> dt = timestepDays*k         -- timestep
+>
+> nIters :: Int
 > nIters = floor (t/dt)       -- number of iterations
 
 We represent our system of bodies of identical mass as a
 1-dimensional (unboxed) array.
 
+> m :: Array D DIM1 Double
 > m = Repa.map (mass*) $
 >     fromListUnboxed (Z :. nBodies) $
 >     take nBodies $ repeat 1.0
@@ -64,6 +66,7 @@ We assign our bodies random positions inside a box using a
 >                  Prelude.map (fromIntegral . round) $
 >                  rands (spaceDim * n) 0 r
 >
+> startPoss :: Array U DIM2 Double
 > startPoss = randomPoss nBodies r
 
 We wish to calculate a two dimensional array of forces where each
@@ -74,11 +77,6 @@ operating).
 $$
 F_i = G\sum_{j\neq i} -m_i m_j\frac{\vec{r}_i - \vec{r}_j}{\abs{vec{r}_i - vec{r}_j}^3}
 $$
-
-> replicateRows :: Source a Double =>
->             Array a DIM2 Double -> Array D DIM3 Double
-> replicateRows a = extend (Any :. i :. All) a
->             where (Z :. i :. j) = extent a
 
 We wish to calculate the products of all pairs of masses. To do this
 we first take our 1-dimensional array of masses and create a
@@ -104,36 +102,75 @@ multiplications as strictly necessary.
 >   where
 >     ns = repDim1To2Inner ms
 
+Next we wish to calculate the distances between each point and every
+other point. In a similar way to calculating the pairs of products of
+the masses we first replicate a 1-dimensional array of positions in
+3-dimensional Euclidean space which we represent as a 2-dimensional
+array. We thus create a 3-dimensional array constaining $n \times n
+\times 3$ elements.
 
+> replicateRows :: Source a Double =>
+>                  Array a DIM2 Double ->
+>                  Array D DIM3 Double
+> replicateRows a = extend (Any :. i :. All) a
+>   where (Z :. i :. _j) = extent a
 
-> extraDim' :: Source a Double =>
->              Array a DIM2 Double -> Array D DIM3 Double
-> extraDim' a = extend (Any :. spaceDim) a
->
+In this case we cannot use tranpose directly as this will tranpose the
+two outermost dimensions and we need to transpose the two innermost
+dimensions.
+
 > transposeInner :: Source a Double =>
 >               Array a DIM3 Double -> Array D DIM3 Double
 > transposeInner ps = backpermute (f e) f ps
->                       where
->                         e = extent ps
->                         f (Z :. i :. i' :. j) = Z :. i' :. i :. j
+>   where
+>     e = extent ps
+>     f (Z :. i :. i' :. j) = Z :. i' :. i :. j
+
+Now can calculate the point differences between all points and all
+other points. Note again that this array is symmetric so we have
+performed roughly twice as many multiplications as necessary.
 
 > pointDiffs :: Source a Double =>
->               Array a DIM2 Double -> Array D DIM3 Double
+>               Array a DIM2 Double ->
+>               Array D DIM3 Double
 > pointDiffs ps = Repa.zipWith (-) qs (transposeInner qs)
->                   where qs = replicateRows ps
+>   where qs = replicateRows ps
+
+We have an 3-dimensional array of distances between each point which
+is in effect a 2-dimensional array of the $x$, $y$, and $z$
+co-ordinates. We need to mulitply these distances by the cross
+products of the masses. But the cross products of the masses form a
+2-dimensional array. So we replicate the cross products for each of
+the $x$, $y$ and $z$ co-ordinates to form a 3-dimensional array.
+
+> repDim2to3Outer :: Source a Double =>
+>              Array a DIM2 Double -> Array D DIM3 Double
+> repDim2to3Outer a = extend (Any :. spaceDim) a
 >
+
+Now we can calculate the forces in repa using the above equation.
+
 > forces :: (Source a Double, Source b Double) =>
->            Array a DIM2 Double -> Array b DIM1 Double ->
->            Array D DIM3 Double
+>           Array a DIM2 Double ->
+>           Array b DIM1 Double ->
+>           Array D DIM3 Double
 > forces qs ms = Repa.zipWith (*) fs is
->   where ds = extraDim' $
+>   where ds = repDim2to3Outer $
 >              Repa.map sqrt $
 >              Repa.map (+ (eps^2)) $
 >              foldS (+) 0 $
 >              Repa.map (^2) $
 >              pointDiffs qs
->         is = extraDim' $ prodPairsMasses ms
+>         is = repDim2to3Outer $ prodPairsMasses ms
 >         fs = Repa.map (* (negate g)) $ Repa.zipWith (/) (pointDiffs qs) ds
+
+Next we turn our attention to the leapfrog scheme.
+
+> stepVelocity :: Source a Double =>
+>                 Array a DIM2 Double ->
+>                 Array b DIM2 Double ->
+>                 Array D DIM2 Double
+> stepVelocity vs fs = undefined
 
 > testParticles :: Array U DIM2 Double
 > testParticles = fromListUnboxed (Z :. (4 ::Int) :. spaceDim) [1..12]
