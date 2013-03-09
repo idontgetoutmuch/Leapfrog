@@ -16,10 +16,42 @@
 > import Control.Monad
 > import Control.Monad.State
 
+We wish to model planetary motion using the
+[leapfrog][leapfrog] method. This is preferred to other numerical methods as it maintains the total energy of the system.
+
+  [leapfrog]: http://en.wikipedia.org/wiki/Leapfrog_integration
+
+In essence, we have to update the position and velocity of each planet
+half a time step out of phase (hence the name leapfrog) as shown
+below.
+
+$$
+\begin{align*}
+x_i                 &= x_{i-1} + v_{i - \frac{1}{2}}\Delta t \\
+a_i                 &= F(x_i) \\
+v_{i + \frac{1}{2}} &= v_{i - \frac{1}{2}} + a_i\Delta t
+\end{align*}
+$$
+
 We work in a 3 dimensional Euclidean space.
 
 > spaceDim :: Int
 > spaceDim = 3
+
+It's easy to confuse units so we define some type synomyms to help. Of
+course having these checked by machine would be better.
+
+FIXME: Can we use dimensional
+(http://hackage.haskell.org/package/dimensional-0.10.2) to enforce
+units? My experience was not good but maybe that was just me. Perhaps
+Chris could look at this, we can contact the author and scour the
+Internet.
+
+> type Distance = Double
+> type Mass     = Double
+> type Force    = Double
+> type Speed    = Double
+> type Time     = Double
 
 Some physical constants for our system.
 
@@ -75,7 +107,7 @@ case of the three dimensional Euclidean space in which we are
 operating).
 
 $$
-F_i = G\sum_{j\neq i} -m_i m_j\frac{\vec{r}_i - \vec{r}_j}{\abs{vec{r}_i - vec{r}_j}^3}
+F_i = G\sum_{j\neq i} -m_i m_j\frac{\vec{r}_i - \vec{r}_j}{{\|{\vec{r}_i - \vec{r}_j}\|}^3}
 $$
 
 We wish to calculate the products of all pairs of masses. To do this
@@ -120,7 +152,8 @@ two outermost dimensions and we need to transpose the two innermost
 dimensions.
 
 > transposeInner :: Source a Double =>
->               Array a DIM3 Double -> Array D DIM3 Double
+>               Array a DIM3 Double ->
+>               Array D DIM3 Double
 > transposeInner ps = backpermute (f e) f ps
 >   where
 >     e = extent ps
@@ -166,11 +199,38 @@ Now we can calculate the forces in repa using the above equation.
 
 Next we turn our attention to the leapfrog scheme.
 
-> stepVelocity :: Source a Double =>
+> stepVelocity :: ( Source a Double
+>                 , Source b Double
+>                 , Source c Double
+>                 )  =>
+>                 Array a DIM2 Double ->
+>                 Array b DIM2 Double ->
+>                 Array c DIM1 Double ->
+>                 Array D DIM2 Double
+> stepVelocity vs fs ms = Repa.zipWith (+) vs $
+>                         Repa.zipWith (/) ms2 $
+>                         Repa.zipWith (*) fs dt2
+>   where
+>     ms2 :: Array D DIM2 Double
+>     ms2 = repDim1To2Inner ms
+>     dt2 :: Array D DIM2 Double
+>     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [dt]
+>     (Z :. i :. j) = extent fs
+
+> stepPosition :: ( Source a Double
+>                 , Source b Double
+>                 ) =>
 >                 Array a DIM2 Double ->
 >                 Array b DIM2 Double ->
 >                 Array D DIM2 Double
-> stepVelocity vs fs = undefined
+> stepPosition xs vs = Repa.zipWith (+) xs vs
+
+  [jupiter]: http://en.wikipedia.org/wiki/Jupiter
+
+> mSun, mJupiter, mEarth :: Mass
+> mSun     = 1.9889e30
+> mJupiter = 1.8986e27
+> mEarth   = 5.9722e24
 
 > testParticles :: Array U DIM2 Double
 > testParticles = fromListUnboxed (Z :. (4 ::Int) :. spaceDim) [1..12]
