@@ -195,7 +195,8 @@ Now we can calculate the forces in repa using the above equation.
 >              Repa.map (^2) $
 >              pointDiffs qs
 >         is = repDim2to3Outer $ prodPairsMasses ms
->         fs = Repa.map (* (negate g)) $ Repa.zipWith (/) (pointDiffs qs) ds
+>         fs = Repa.map (* (negate gConst)) $
+>              Repa.zipWith (/) (pointDiffs qs) ds
 
 Next we turn our attention to the leapfrog scheme.
 
@@ -234,22 +235,82 @@ Now we need some initial conditions to start our simulation.
 > jupiterMass = 1.8986e27
 > earthMass   = 5.9722e24
 
-> jupiterAphelion :: Distance
-> jupiterAphelion = 8.165208e11
-> jupiterEccentrity :: Double   -- Eccentricity is dimensionless
+> jupiterAphelion   :: Distance
+> jupiterAphelion   = 8.165208e11
+> jupiterPerihelion :: Distance
+> jupiterPerihelion = 7.405736e11
+> jupiterEccentrity :: Double     -- Eccentricity is dimensionless
 > jupiterEccentrity = 0.048775
+>
+> jupiterMajRad :: Distance
+> jupiterMajRad = (jupiterPerihelion + jupiterAphelion) / 2
 
-Kepler's third law states, "The square of the orbital period of a planet is directly proportional to the cube of the semi-major axis of its orbit." Here it is in mathematical form:
+Kepler's third law states, "The square of the orbital period of a
+planet is directly proportional to the cube of the semi-major axis of
+its orbit". Here it is in mathematical form:
 
 $$
 T^2 = \frac{4 \pi^2 a^3}{GM}
 $$
 
-where $T$ is the period of the orbit, $a$ is the major radius of the elliptical orbit (Kepler's first law: "The orbit of every planet is an ellipse with the Sun at one of the two foci.")
+where $T$ is the period of the orbit, $a$ is the major radius of the
+elliptical orbit (Kepler's first law: "The orbit of every planet is an
+ellipse with the Sun at one of the two foci"), $G$ is the
+gravitational constant and $M$ is the mass of the sun.
+
+From this we can calculate the mean angular velocity: $n = 2\pi / T$.
 
 > n :: Double
-> n = sqrt $ gConst * mSun / jupiterA^3
+> n = sqrt $ gConst * sunMass / jupiterMajRad^3
 
+$$
+\begin{align*}
+r &= \frac{a(1 - e^2)}{1 - e\cos\theta} \\
+r^2\dot{\theta} &= \sqrt{(1 - e^2)}na^2 \\
+GM_{\rm Sun} &= n^2a^3
+\end{align*}
+$$
+
+where $G$ is the gravitational constant, $n = \frac{2\pi}{T}$ is the
+mean angular orbital velocity, $a$ is the major access of the planet's
+ellipse and $e$ is the eccentricity.
+
+Finally we can calculate Jupiter's velocity by assuming that its
+perihelion is on the $x$-axis and that its velocity in the $x$
+direction must be $0$.
+
+Let us calculate the initial conditions assuming that Jupiter starts
+at its perihelion. The angular velocity at that point is entirely in
+the negative $y$ direction.
+
+With the Leapfrog Method we need the velocity to be half a time step
+before the perihelion.
+
+If we take $(0.0, -v_p, 0.0)$ to be the velocity of Jupiter at the
+perihelion then if $\delta\theta$ is the angle with respect to the
+negative y-axis at half a time step before Jupiter reaches the
+perihelion then the velocity of Jupiter at this point is given by
+simple trigonometry:
+$$
+(-v_p \sin(\delta\theta), -v_p \cos(\delta\theta), 0.0) \approx (-v_p\delta\theta, -v_p(1-\delta\theta^2 / 2), 0.0)
+$$
+
+> thetaDotP :: Double -- radians per second
+> thetaDotP = n * jupiterMajRad^2 * sqrt (1 - jupiterEccentrity^2) / jupiterPerihelion^2
+> deltaThetaP :: Double -- radians
+> deltaThetaP = thetaDotP * dt / 2
+>
+> jupiterVPeri :: Speed
+> jupiterVPeri = thetaDotP * jupiterPerihelion
+>
+> jupiterInitX :: Speed
+> jupiterInitX = negate $ jupiterVPeri * deltaThetaP
+>
+> jupiterInitY :: Speed
+> jupiterInitY = negate $ jupiterVPeri * (1 - deltaThetaP^2 / 2)
+>
+> jupiterV :: (Speed, Speed, Speed)
+> jupiterV = (jupiterInitX, jupiterInitY, 0.0)
 
 > testParticles :: Array U DIM2 Double
 > testParticles = fromListUnboxed (Z :. (4 ::Int) :. spaceDim) [1..12]
