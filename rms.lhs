@@ -55,8 +55,8 @@ Internet.
 
 Some physical constants for our system.
 
-> g, k, r, mass :: Double
-> g = 6.67384e-11             -- gravitational constant
+> gConst, k, r, mass :: Double
+> gConst = 6.67384e-11             -- gravitational constant
 > k = 24*60*60                -- seconds in a day
 > r = 1e1                     -- radius of sphere particles contained in
 > mass = 1e24                 -- mass
