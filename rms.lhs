@@ -225,12 +225,31 @@ Next we turn our attention to the leapfrog scheme.
 >                 Array D DIM2 Double
 > stepPosition xs vs = Repa.zipWith (+) xs vs
 
+Now we need some initial conditions to start our simulation.
+
   [jupiter]: http://en.wikipedia.org/wiki/Jupiter
 
-> mSun, mJupiter, mEarth :: Mass
-> mSun     = 1.9889e30
-> mJupiter = 1.8986e27
-> mEarth   = 5.9722e24
+> sunMass, jupiterMass, earthMass :: Mass
+> sunMass     = 1.9889e30
+> jupiterMass = 1.8986e27
+> earthMass   = 5.9722e24
+
+> jupiterAphelion :: Distance
+> jupiterAphelion = 8.165208e11
+> jupiterEccentrity :: Double   -- Eccentricity is dimensionless
+> jupiterEccentrity = 0.048775
+
+Kepler's third law states, "The square of the orbital period of a planet is directly proportional to the cube of the semi-major axis of its orbit." Here it is in mathematical form:
+
+$$
+T^2 = \frac{4 \pi^2 a^3}{GM}
+$$
+
+where $T$ is the period of the orbit, $a$ is the major radius of the elliptical orbit (Kepler's first law: "The orbit of every planet is an ellipse with the Sun at one of the two foci.")
+
+> n :: Double
+> n = sqrt $ gConst * mSun / jupiterA^3
+
 
 > testParticles :: Array U DIM2 Double
 > testParticles = fromListUnboxed (Z :. (4 ::Int) :. spaceDim) [1..12]
