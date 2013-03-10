@@ -130,7 +130,7 @@ multiplications as strictly necessary.
 > prodPairsMasses :: Source a Double =>
 >                    Array a DIM1 Double ->
 >                    Array D DIM2 Double
-> prodPairsMasses ms = Repa.zipWith (*) ns (transpose ns)
+> prodPairsMasses ms = ns *^ (transpose ns)
 >   where
 >     ns = repDim1To2Inner ms
 
@@ -166,7 +166,7 @@ performed roughly twice as many multiplications as necessary.
 > pointDiffs :: Source a Double =>
 >               Array a DIM2 Double ->
 >               Array D DIM3 Double
-> pointDiffs ps = Repa.zipWith (-) qs (transposeInner qs)
+> pointDiffs ps = qs -^ (transposeInner qs)
 >   where qs = replicateRows ps
 
 We have an 3-dimensional array of distances between each point which
@@ -187,7 +187,7 @@ Now we can calculate the forces in repa using the above equation.
 >           Array a DIM2 Double ->
 >           Array b DIM1 Double ->
 >           Array D DIM3 Double
-> forces qs ms = Repa.zipWith (*) fs is
+> forces qs ms = fs *^ is
 >   where ds = repDim2to3Outer $
 >              Repa.map sqrt $
 >              Repa.map (+ (eps^2)) $
@@ -196,7 +196,7 @@ Now we can calculate the forces in repa using the above equation.
 >              pointDiffs qs
 >         is = repDim2to3Outer $ prodPairsMasses ms
 >         fs = Repa.map (* (negate gConst)) $
->              Repa.zipWith (/) (pointDiffs qs) ds
+>              (pointDiffs qs) /^ ds
 
 Next we turn our attention to the leapfrog scheme.
 
@@ -208,9 +208,7 @@ Next we turn our attention to the leapfrog scheme.
 >                 Array b DIM2 Double ->
 >                 Array c DIM1 Double ->
 >                 Array D DIM2 Double
-> stepVelocity vs fs ms = Repa.zipWith (+) vs $
->                         Repa.zipWith (/) ms2 $
->                         Repa.zipWith (*) fs dt2
+> stepVelocity vs fs ms = vs +^ fs *^ dt2 /^ ms2
 >   where
 >     ms2 :: Array D DIM2 Double
 >     ms2 = repDim1To2Inner ms
@@ -224,7 +222,7 @@ Next we turn our attention to the leapfrog scheme.
 >                 Array a DIM2 Double ->
 >                 Array b DIM2 Double ->
 >                 Array D DIM2 Double
-> stepPosition xs vs = Repa.zipWith (+) xs vs
+> stepPosition xs vs = xs +^ vs
 
 Now we need some initial conditions to start our simulation.
 
@@ -240,10 +238,20 @@ Now we need some initial conditions to start our simulation.
 > jupiterPerihelion :: Distance
 > jupiterPerihelion = 7.405736e11
 > jupiterEccentrity :: Double     -- Eccentricity is dimensionless
-> jupiterEccentrity = 0.048775
+> jupiterEccentrity = 4.8775e-2
 >
 > jupiterMajRad :: Distance
 > jupiterMajRad = (jupiterPerihelion + jupiterAphelion) / 2
+
+> earthAphelion   :: Distance
+> earthAphelion   = 1.520982e11
+> earthPerihelion :: Distance
+> earthPerihelion = 1.470983e11
+> earthEccentrity :: Double     -- Eccentricity is dimensionless
+> earthEccentrity = 1.6711e-2
+>
+> earthMajRad :: Distance
+> earthMajRad = (earthPerihelion + earthAphelion) / 2
 
 Kepler's third law states, "The square of the orbital period of a
 planet is directly proportional to the cube of the semi-major axis of
@@ -260,8 +268,8 @@ gravitational constant and $M$ is the mass of the sun.
 
 From this we can calculate the mean angular velocity: $n = 2\pi / T$.
 
-> n :: Double
-> n = sqrt $ gConst * sunMass / jupiterMajRad^3
+> nJupiter :: Double
+> nJupiter = sqrt $ gConst * sunMass / jupiterMajRad^3
 
 $$
 \begin{align*}
@@ -295,22 +303,63 @@ $$
 (-v_p \sin(\delta\theta), -v_p \cos(\delta\theta), 0.0) \approx (-v_p\delta\theta, -v_p(1-\delta\theta^2 / 2), 0.0)
 $$
 
-> thetaDotP :: Double -- radians per second
-> thetaDotP = n * jupiterMajRad^2 * sqrt (1 - jupiterEccentrity^2) / jupiterPerihelion^2
-> deltaThetaP :: Double -- radians
-> deltaThetaP = thetaDotP * dt / 2
+> jupiterThetaDotP :: Double -- radians per second
+> jupiterThetaDotP = nJupiter *
+>                    jupiterMajRad^2 *
+>                    sqrt (1 - jupiterEccentrity^2) / jupiterPerihelion^2
+> jupiterDeltaThetaP :: Double -- radians
+> jupiterDeltaThetaP = jupiterThetaDotP * dt / 2
 >
 > jupiterVPeri :: Speed
-> jupiterVPeri = thetaDotP * jupiterPerihelion
+> jupiterVPeri = jupiterThetaDotP * jupiterPerihelion
 >
 > jupiterInitX :: Speed
-> jupiterInitX = negate $ jupiterVPeri * deltaThetaP
+> jupiterInitX = negate $ jupiterVPeri * jupiterDeltaThetaP
 >
 > jupiterInitY :: Speed
-> jupiterInitY = negate $ jupiterVPeri * (1 - deltaThetaP^2 / 2)
+> jupiterInitY = negate $ jupiterVPeri * (1 - jupiterDeltaThetaP^2 / 2)
 >
 > jupiterV :: (Speed, Speed, Speed)
 > jupiterV = (jupiterInitX, jupiterInitY, 0.0)
+>
+> jupiterR :: (Distance, Distance, Distance)
+> jupiterR = (jupiterPerihelion, 0.0, 0.0)
+
+We can do the same for Earth but we assume the earth is at its
+perihelion on the opposite side of the Sun to Jupiter.
+
+> nEarth :: Double
+> nEarth = sqrt $ gConst * sunMass / earthMajRad^3
+>
+> earthThetaDotP :: Double -- radians per second
+> earthThetaDotP = nEarth *
+>                  earthMajRad^2 *
+>                  sqrt (1 - earthEccentrity^2) / earthPerihelion^2
+> earthDeltaThetaP :: Double -- radians
+> earthDeltaThetaP = earthThetaDotP * dt / 2
+>
+> earthVPeri :: Speed
+> earthVPeri = earthThetaDotP * earthPerihelion
+>
+> earthInitX :: Speed
+> earthInitX = earthVPeri * earthDeltaThetaP
+>
+> earthInitY :: Speed
+> earthInitY = earthVPeri * (1 - earthDeltaThetaP^2 / 2)
+>
+> earthV :: (Speed, Speed, Speed)
+> earthV = (earthInitX, earthInitY, 0.0)
+>
+> earthR :: (Distance, Distance, Distance)
+> earthR = (earthPerihelion, 0.0, 0.0)
+
+For completeness we give the Sun's starting conditions.
+
+> sunV :: (Speed, Speed, Speed)
+> sunV = (0.0, 0.0, 0.0)
+>
+> sunR :: (Distance, Distance, Distance)
+> sunR = (0.0, 0.0, 0.0)
 
 > testParticles :: Array U DIM2 Double
 > testParticles = fromListUnboxed (Z :. (4 ::Int) :. spaceDim) [1..12]
@@ -331,3 +380,7 @@ $$
 >           putStrLn $ "Forces..."
 >           fsm <- computeP $ forces testParticles3 m :: Result
 >           putStrLn $ show fsm
+>           fs <- sumP $ forces testParticles3 m
+>           putStrLn $ show fs
+>           -- newV <- (computeP $ stepVelocity undefined undefined undefined)
+>           -- return undefined
