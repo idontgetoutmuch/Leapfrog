@@ -1,6 +1,8 @@
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > {-# LANGUAGE FlexibleContexts          #-}
 > {-# LANGUAGE TypeOperators             #-}
+> {-# LANGUAGE ScopedTypeVariables       #-}
+> {-# LANGUAGE RankNTypes                #-}
 
 > {-# OPTIONS_GHC -Wall                    #-}
 > {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -66,7 +68,7 @@ Some physical constants for our system.
 
 And some constants for our finite difference method.
 
-> eps, days, t, timestepDays,dt :: Double
+> eps, days, t, timestepDays, dt :: Double
 > eps = 0.1*r                 -- softening constant
 > days = 36500*100            -- total time in days
 > t = days*k                  -- total time
@@ -116,10 +118,10 @@ we first take our 1-dimensional array of masses and create a
 where $n$ is the size of the 1-dimensional array. We thus create a
 2-dimensional array containing $n \times n$ elements.
 
-> repDim1To2Inner :: Source a Double =>
+> repDim1To2Outer :: Source a Double =>
 >                    Array a DIM1 Double ->
 >                    Array D DIM2 Double
-> repDim1To2Inner a = extend (Any :. i :. All) a
+> repDim1To2Outer a = extend (Any :. i :. All) a
 >   where (Z :. i) = extent a
 
 We can now multiply this 2-dimensional array with its transpose
@@ -132,7 +134,7 @@ multiplications as strictly necessary.
 >                    Array D DIM2 Double
 > prodPairsMasses ms = ns *^ (transpose ns)
 >   where
->     ns = repDim1To2Inner ms
+>     ns = repDim1To2Outer ms
 
 Next we wish to calculate the distances between each point and every
 other point. In a similar way to calculating the pairs of products of
@@ -148,13 +150,13 @@ array. We thus create a 3-dimensional array constaining $n \times n
 >   where (Z :. i :. _j) = extent a
 
 In this case we cannot use tranpose directly as this will tranpose the
-two outermost dimensions and we need to transpose the two innermost
+two innermost dimensions and we need to transpose the two outermost
 dimensions.
 
-> transposeInner :: Source a Double =>
+> transposeOuter :: Source a Double =>
 >               Array a DIM3 Double ->
 >               Array D DIM3 Double
-> transposeInner ps = backpermute (f e) f ps
+> transposeOuter ps = backpermute (f e) f ps
 >   where
 >     e = extent ps
 >     f (Z :. i :. i' :. j) = Z :. i' :. i :. j
@@ -166,7 +168,7 @@ performed roughly twice as many multiplications as necessary.
 > pointDiffs :: Source a Double =>
 >               Array a DIM2 Double ->
 >               Array D DIM3 Double
-> pointDiffs ps = qs -^ (transposeInner qs)
+> pointDiffs ps = qs -^ (transposeOuter qs)
 >   where qs = replicateRows ps
 
 We have an 3-dimensional array of distances between each point which
@@ -189,6 +191,7 @@ Now we can calculate the forces in repa using the above equation.
 >           Array D DIM3 Double
 > forces qs ms = fs *^ is
 >   where ds = repDim2to3Outer $
+>              Repa.map (^3) $
 >              Repa.map sqrt $
 >              Repa.map (+ (eps^2)) $
 >              foldS (+) 0 $
@@ -208,10 +211,10 @@ Next we turn our attention to the leapfrog scheme.
 >                 Array b DIM2 Double ->
 >                 Array c DIM1 Double ->
 >                 Array D DIM2 Double
-> stepVelocity vs fs ms = vs +^ fs *^ dt2 /^ ms2
+> stepVelocity vs fs ms = vs +^ (fs *^ dt2 /^ ms2)
 >   where
 >     ms2 :: Array D DIM2 Double
->     ms2 = repDim1To2Inner ms
+>     ms2 = repDim1To2Outer ms
 >     dt2 :: Array D DIM2 Double
 >     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [dt]
 >     (Z :. i :. j) = extent fs
@@ -222,7 +225,11 @@ Next we turn our attention to the leapfrog scheme.
 >                 Array a DIM2 Double ->
 >                 Array b DIM2 Double ->
 >                 Array D DIM2 Double
-> stepPosition xs vs = xs +^ vs
+> stepPosition xs vs = xs +^ (vs *^ dt2)
+>   where
+>     dt2 :: Array D DIM2 Double
+>     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [dt]
+>     (Z :. i :. j) = extent vs
 
 Now we need some initial conditions to start our simulation.
 
@@ -361,26 +368,88 @@ For completeness we give the Sun's starting conditions.
 > sunR :: (Distance, Distance, Distance)
 > sunR = (0.0, 0.0, 0.0)
 
-> testParticles :: Array U DIM2 Double
-> testParticles = fromListUnboxed (Z :. (4 ::Int) :. spaceDim) [1..12]
+> initVs :: Array U DIM2 Speed
+> initVs = fromListUnboxed (Z :. nBodies :. spaceDim) xs
+>   where
+>     xs = [ earthX,   earthY,   earthZ
+>          , jupiterX, jupiterY, jupiterZ
+>          , sunX,     sunY,     sunZ
+>          ]
+>     (earthX,   earthY,   earthZ)   = earthV
+>     (jupiterX, jupiterY, jupiterZ) = jupiterV
+>     (sunX,     sunY,     sunZ)     = sunV
 
-> testParticles2 :: Array U DIM2 Double
-> testParticles2 = fromListUnboxed (Z :. (2 ::Int) :. spaceDim) [1,1,1,2,2,2]
+> initRs :: Array U DIM2 Distance
+> initRs = fromListUnboxed (Z :. nBodies :. spaceDim) xs
+>   where
+>     xs = [ earthX,   earthY,   earthZ
+>          , jupiterX, jupiterY, jupiterZ
+>          , sunX,     sunY,     sunZ
+>          ]
+>     (earthX,   earthY,   earthZ)   = earthR
+>     (jupiterX, jupiterY, jupiterZ) = jupiterR
+>     (sunX,     sunY,     sunZ)     = sunR
 
-> testParticles3 :: Array U DIM2 Double
-> testParticles3 = fromListUnboxed (Z :. (3 ::Int) :. spaceDim) [1,2,3,5,7,11,13,17,19]
+> masses :: Array U DIM1 Mass
+> masses = fromListUnboxed (Z :. nBodies) xs
+>   where
+>     xs = [ earthMass
+>          , jupiterMass
+>          , sunMass
+>          ]
 
-> type Result = IO (Array U DIM3 Double)
+> type Velocities = Array U DIM2 Speed
+> type Positions  = Array U DIM2 Distance
+
+> stepOnce :: Monad m =>
+>             Positions -> Velocities ->
+>             m (Positions, Velocities)
+> stepOnce rs vs = do
+>   fs    <- sumP $ transpose $ forces rs masses
+>   newVs <- computeP $ stepVelocity vs fs masses
+>   newRs <- computeP $ stepPosition rs newVs
+>   return (newRs, newVs)
+
+Note the *forall*. For this we have to use the *LANGUAGE* pragmas
+*ScopedTypeVariables* and *RankNTypes*.
+
+> stepN :: forall m . Monad m =>
+>          Int -> Positions -> Velocities ->
+>          m (Positions, Velocities)
+> stepN n = curry updaterMulti
+>   where
+>     updaterMulti = foldr (>=>) return updaters
+>     updaters :: [(Positions, Velocities) -> m (Positions, Velocities)]
+>     updaters = replicate n (uncurry stepOnce)
+>
+> stepN' :: Monad m =>
+>           Int -> Positions -> Velocities ->
+>           m [(Positions, Velocities)]
+> stepN' 0 rs vs = return [(rs, vs)]
+> stepN' n rs vs = do
+>   (newRs, newVs) <- stepOnce rs vs
+>   rsVs <- stepN' (n-1) newRs newVs
+>   return $ (newRs, newVs) : rsVs
+
+> nSteps :: Int
+> nSteps = 11
 
 > main :: IO ()
-> main = do mn <- computeP m :: IO (Array U DIM1 Double)
->           putStrLn $ "Base data..."
->           putStrLn $ show mn
->           putStrLn $ show testParticles3
->           putStrLn $ "Forces..."
->           fsm <- computeP $ forces testParticles3 m :: Result
->           putStrLn $ show fsm
->           fs <- sumP $ forces testParticles3 m
->           putStrLn $ show fs
->           -- newV <- (computeP $ stepVelocity undefined undefined undefined)
->           -- return undefined
+> main = do
+>   putStrLn "Initial Rs"
+>   putStrLn $ show initRs
+>   putStrLn $ "Initial Vs"
+>   putStrLn $ show initVs
+>   fs <- sumP $ transpose $ forces initRs masses :: IO (Array U DIM2 Double)
+>   putStrLn "Forces"
+>   putStrLn $ show fs
+>   vs <- computeP $ stepVelocity initVs fs masses :: IO (Array U DIM2 Double)
+>   putStrLn "Vs after 1 timestep"
+>   putStrLn $ show vs
+>   (rs1Year, vs1Year) <- stepN nSteps initRs initVs
+>   putStrLn $ "Rs after " ++ show nSteps
+>   putStrLn $ show rs1Year
+>   putStrLn $ "Vs after " ++ show nSteps
+>   putStrLn $ show vs1Year
+>   rsVs <- stepN' nSteps initRs initVs
+>   putStrLn $ show rsVs
