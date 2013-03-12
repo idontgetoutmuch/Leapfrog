@@ -8,15 +8,17 @@
 > {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 > {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
 
-> import Data.Array.Repa as Repa hiding ((++))
+> import Data.Array.Repa as Repa hiding ((++), zipWith)
 
-> import Data.Random ()
-> import Data.Random.Distribution.Uniform
-> import Data.RVar
-
-> import System.Random
 > import Control.Monad
-> import Control.Monad.State
+
+FIXME: Temporary diagram
+
+> import Diagrams.Prelude hiding (Any, D, (*^), All)
+> import Diagrams.Backend.Cairo.CmdLine
+> import Plot
+
+FIXME: END
 
 We wish to model planetary motion using the
 [leapfrog][leapfrog] method. This is preferred to other numerical methods as it maintains the total energy of the system.
@@ -64,7 +66,7 @@ Some physical constants for our system.
 > mass = 1e24                 -- mass
 
 > nBodies :: Int
-> nBodies = 3                -- number of bodies
+> nBodies = 2 {- 3 -}                -- number of bodies
 
 And some constants for our finite difference method.
 
@@ -77,31 +79,6 @@ And some constants for our finite difference method.
 >
 > nIters :: Int
 > nIters = floor (t/dt)       -- number of iterations
-
-We represent our system of bodies of identical mass as a
-1-dimensional (unboxed) array.
-
-> m :: Array D DIM1 Double
-> m = Repa.map (mass*) $
->     fromListUnboxed (Z :. nBodies) $
->     take nBodies $ repeat 1.0
->
-> rands :: Int -> Double -> Double -> [Double]
-> rands n a b =
->   fst $ runState (replicateM n (sampleRVar (uniform a b))) (mkStdGen seed)
->     where
->       seed = 0
-
-We assign our bodies random positions inside a box using a
-2-dimensional (unboxed) array.
-
-> randomPoss :: Int -> Double -> Array U DIM2 Double
-> randomPoss n r = fromListUnboxed (Z :. n :. spaceDim) $
->                  Prelude.map (fromIntegral . round) $
->                  rands (spaceDim * n) 0 r
->
-> startPoss :: Array U DIM2 Double
-> startPoss = randomPoss nBodies r
 
 We wish to calculate a two dimensional array of forces where each
 force is itself a one dimensional vector of three elements (in the
@@ -214,7 +191,7 @@ Next we turn our attention to the leapfrog scheme.
 > stepVelocity vs fs ms = vs +^ (fs *^ dt2 /^ ms2)
 >   where
 >     ms2 :: Array D DIM2 Double
->     ms2 = repDim1To2Outer ms
+>     ms2 = extend (Any :. j) ms
 >     dt2 :: Array D DIM2 Double
 >     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [dt]
 >     (Z :. i :. j) = extent fs
@@ -371,8 +348,19 @@ For completeness we give the Sun's starting conditions.
 > initVs :: Array U DIM2 Speed
 > initVs = fromListUnboxed (Z :. nBodies :. spaceDim) xs
 >   where
+>     xs = [ 2557.5,   29668.52,   0.0
+>          -- , jupiterX, jupiterY, jupiterZ
+>          ,    0.0,       0.0,    0.0
+>          ]
+>     (earthX,   earthY,   earthZ)   = earthV
+>     (jupiterX, jupiterY, jupiterZ) = jupiterV
+>     (sunX,     sunY,     sunZ)     = sunV
+
+> initVs' :: Array U DIM2 Speed
+> initVs' = fromListUnboxed (Z :. nBodies :. spaceDim) xs
+>   where
 >     xs = [ earthX,   earthY,   earthZ
->          , jupiterX, jupiterY, jupiterZ
+>          -- , jupiterX, jupiterY, jupiterZ
 >          , sunX,     sunY,     sunZ
 >          ]
 >     (earthX,   earthY,   earthZ)   = earthV
@@ -382,8 +370,19 @@ For completeness we give the Sun's starting conditions.
 > initRs :: Array U DIM2 Distance
 > initRs = fromListUnboxed (Z :. nBodies :. spaceDim) xs
 >   where
+>     xs = [ 1.49600000e+11,   0.0,   0.0
+>          -- , jupiterX, jupiterY, jupiterZ
+>          , 0.0,              0.0,   0.0
+>          ]
+>     (earthX,   earthY,   earthZ)   = earthR
+>     (jupiterX, jupiterY, jupiterZ) = jupiterR
+>     (sunX,     sunY,     sunZ)     = sunR
+
+> initRs' :: Array U DIM2 Distance
+> initRs' = fromListUnboxed (Z :. nBodies :. spaceDim) xs
+>   where
 >     xs = [ earthX,   earthY,   earthZ
->          , jupiterX, jupiterY, jupiterZ
+>          -- , jupiterX, jupiterY, jupiterZ
 >          , sunX,     sunY,     sunZ
 >          ]
 >     (earthX,   earthY,   earthZ)   = earthR
@@ -394,7 +393,7 @@ For completeness we give the Sun's starting conditions.
 > masses = fromListUnboxed (Z :. nBodies) xs
 >   where
 >     xs = [ earthMass
->          , jupiterMass
+>          -- , jupiterMass
 >          , sunMass
 >          ]
 
@@ -421,23 +420,30 @@ Note the *forall*. For this we have to use the *LANGUAGE* pragmas
 >     updaterMulti = foldr (>=>) return updaters
 >     updaters :: [(Positions, Velocities) -> m (Positions, Velocities)]
 >     updaters = replicate n (uncurry stepOnce)
->
+
+FIXME: Surely this can be as an instance of some nice recursion pattern.
+
 > stepN' :: Monad m =>
 >           Int -> Positions -> Velocities ->
 >           m [(Positions, Velocities)]
-> stepN' 0 rs vs = return [(rs, vs)]
 > stepN' n rs vs = do
->   (newRs, newVs) <- stepOnce rs vs
->   rsVs <- stepN' (n-1) newRs newVs
->   return $ (newRs, newVs) : rsVs
+>   rsVs <- stepAux n rs vs
+>   return $ (rs, vs) : rsVs
+>   where
+>     stepAux 0  _  _ = return []
+>     stepAux n rs vs = do
+>       (newRs, newVs) <- stepOnce rs vs
+>       rsVs <- stepAux (n-1) newRs newVs
+>       return $ (newRs, newVs) : rsVs
 
 > nSteps :: Int
-> nSteps = 11
+> nSteps = 36
 
 > main :: IO ()
 > main = do
 >   putStrLn "Initial Rs"
 >   putStrLn $ show initRs
+>   putStrLn $ show $ initRs!(Z :. (0 :: Int) :. (0 :: Int))
 >   putStrLn $ "Initial Vs"
 >   putStrLn $ show initVs
 >   fs <- sumP $ transpose $ forces initRs masses :: IO (Array U DIM2 Double)
@@ -452,4 +458,19 @@ Note the *forall*. For this we have to use the *LANGUAGE* pragmas
 >   putStrLn $ "Vs after " ++ show nSteps
 >   putStrLn $ show vs1Year
 >   rsVs <- stepN' nSteps initRs initVs
->   putStrLn $ show rsVs
+>   let rs = Prelude.map fst rsVs
+>       vs = Prelude.map snd rsVs
+>   let earthXs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (0 :: Int))) rs
+>       earthYs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (1 :: Int))) rs
+>   putStrLn $ show earthXs
+>   putStrLn $ show earthYs
+>   let earthVXs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (0 :: Int))) vs
+>       earthVYs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (1 :: Int))) vs
+>   putStrLn $ show earthVXs
+>   putStrLn $ show earthVYs
+>   let scaledEarthXs = Prelude.map (* 1e-11) earthXs
+>       scaledEarthYs = Prelude.map (* 1e-11) earthYs
+
+>   let scatter = zip scaledEarthXs scaledEarthYs
+>   defaultMain $
+>     (scatterplot scatter)
