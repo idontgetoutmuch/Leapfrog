@@ -55,18 +55,17 @@ Internet.
 > type Mass     = Double
 > type Force    = Double
 > type Speed    = Double
-> type Time     = Double
+> type Energy   = Double
 
 Some physical constants for our system.
 
-> gConst, k, r, mass :: Double
-> gConst = 6.67384e-11             -- gravitational constant
+> gConst, k, r :: Double
+> gConst = 6.67384e-11        -- gravitational constant
 > k = 24*60*60                -- seconds in a day
 > r = 1e1                     -- radius of sphere particles contained in
-> mass = 1e24                 -- mass
 
 > nBodies :: Int
-> nBodies = 2 {- 3 -}                -- number of bodies
+> nBodies = 3                -- number of bodies
 
 And some constants for our finite difference method.
 
@@ -307,7 +306,7 @@ $$
 > jupiterV = (jupiterInitX, jupiterInitY, 0.0)
 >
 > jupiterR :: (Distance, Distance, Distance)
-> jupiterR = (jupiterPerihelion, 0.0, 0.0)
+> jupiterR = (negate jupiterPerihelion, 0.0, 0.0)
 
 We can do the same for Earth but we assume the earth is at its
 perihelion on the opposite side of the Sun to Jupiter.
@@ -348,19 +347,8 @@ For completeness we give the Sun's starting conditions.
 > initVs :: Array U DIM2 Speed
 > initVs = fromListUnboxed (Z :. nBodies :. spaceDim) xs
 >   where
->     xs = [ 2557.5,   29668.52,   0.0
->          -- , jupiterX, jupiterY, jupiterZ
->          ,    0.0,       0.0,    0.0
->          ]
->     (earthX,   earthY,   earthZ)   = earthV
->     (jupiterX, jupiterY, jupiterZ) = jupiterV
->     (sunX,     sunY,     sunZ)     = sunV
-
-> initVs' :: Array U DIM2 Speed
-> initVs' = fromListUnboxed (Z :. nBodies :. spaceDim) xs
->   where
 >     xs = [ earthX,   earthY,   earthZ
->          -- , jupiterX, jupiterY, jupiterZ
+>          , jupiterX, jupiterY, jupiterZ
 >          , sunX,     sunY,     sunZ
 >          ]
 >     (earthX,   earthY,   earthZ)   = earthV
@@ -370,19 +358,8 @@ For completeness we give the Sun's starting conditions.
 > initRs :: Array U DIM2 Distance
 > initRs = fromListUnboxed (Z :. nBodies :. spaceDim) xs
 >   where
->     xs = [ 1.49600000e+11,   0.0,   0.0
->          -- , jupiterX, jupiterY, jupiterZ
->          , 0.0,              0.0,   0.0
->          ]
->     (earthX,   earthY,   earthZ)   = earthR
->     (jupiterX, jupiterY, jupiterZ) = jupiterR
->     (sunX,     sunY,     sunZ)     = sunR
-
-> initRs' :: Array U DIM2 Distance
-> initRs' = fromListUnboxed (Z :. nBodies :. spaceDim) xs
->   where
 >     xs = [ earthX,   earthY,   earthZ
->          -- , jupiterX, jupiterY, jupiterZ
+>          , jupiterX, jupiterY, jupiterZ
 >          , sunX,     sunY,     sunZ
 >          ]
 >     (earthX,   earthY,   earthZ)   = earthR
@@ -393,7 +370,7 @@ For completeness we give the Sun's starting conditions.
 > masses = fromListUnboxed (Z :. nBodies) xs
 >   where
 >     xs = [ earthMass
->          -- , jupiterMass
+>          , jupiterMass
 >          , sunMass
 >          ]
 
@@ -436,41 +413,42 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >       rsVs <- stepAux (n-1) newRs newVs
 >       return $ (newRs, newVs) : rsVs
 
+> kineticEnergy :: (Source a Mass, Source b Speed, Monad m) =>
+>                  Array a DIM1 Mass ->
+>                  Array b DIM2 Speed ->
+>                  m Energy
+> kineticEnergy ms vss = do
+>   vs2 <- sumP $ Repa.map (^2) vss
+>   ke2 <- sumP $ ms *^ vs2
+>   return $ 0.5 * ke2!Z
+
+This should give us about one orbit of Jupiter.
+
 > nSteps :: Int
-> nSteps = 36
+> nSteps = 12*36
 
 > main :: IO ()
 > main = do
->   putStrLn "Initial Rs"
->   putStrLn $ show initRs
->   putStrLn $ show $ initRs!(Z :. (0 :: Int) :. (0 :: Int))
->   putStrLn $ "Initial Vs"
->   putStrLn $ show initVs
->   fs <- sumP $ transpose $ forces initRs masses :: IO (Array U DIM2 Double)
->   putStrLn "Forces"
->   putStrLn $ show fs
->   vs <- computeP $ stepVelocity initVs fs masses :: IO (Array U DIM2 Double)
->   putStrLn "Vs after 1 timestep"
->   putStrLn $ show vs
->   (rs1Year, vs1Year) <- stepN nSteps initRs initVs
->   putStrLn $ "Rs after " ++ show nSteps
->   putStrLn $ show rs1Year
->   putStrLn $ "Vs after " ++ show nSteps
->   putStrLn $ show vs1Year
 >   rsVs <- stepN' nSteps initRs initVs
 >   let rs = Prelude.map fst rsVs
 >       vs = Prelude.map snd rsVs
 >   let earthXs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (0 :: Int))) rs
 >       earthYs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (1 :: Int))) rs
->   putStrLn $ show earthXs
->   putStrLn $ show earthYs
->   let earthVXs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (0 :: Int))) vs
->       earthVYs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (1 :: Int))) vs
->   putStrLn $ show earthVXs
->   putStrLn $ show earthVYs
->   let scaledEarthXs = Prelude.map (* 1e-11) earthXs
+>       jupiterXs = Prelude.map (\r -> r!(Z :. (1 :: Int) :. (0 :: Int))) rs
+>       jupiterYs = Prelude.map (\r -> r!(Z :. (1 :: Int) :. (1 :: Int))) rs
+>       jupiterDs = zipWith (\x y -> sqrt $ x^2 + y^2) jupiterXs jupiterYs
+>       scaledEarthXs = Prelude.map (* 1e-11) earthXs
 >       scaledEarthYs = Prelude.map (* 1e-11) earthYs
-
->   let scatter = zip scaledEarthXs scaledEarthYs
+>       scaledJupiterXs = Prelude.map (* 1e-11) jupiterXs
+>       scaledJupiterYs = Prelude.map (* 1e-11) jupiterYs
+>       scatterEarth = zip scaledEarthXs scaledEarthYs
+>       scatterJupiter = zip scaledJupiterXs scaledJupiterYs
+>   putStrLn $ show $ minimum jupiterDs
+>   putStrLn $ show $ maximum jupiterDs
 >   defaultMain $
->     (scatterplot scatter)
+>     (background 2.0) <>
+>     ticksX [-1.0, -0.9..1.0] <>
+>     ticksY [-1.0, -0.9..1.0] <>
+>     (plot 0.1 0.1 scatterEarth) <>
+>     (plot 0.1 0.1 scatterJupiter)
+>

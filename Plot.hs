@@ -1,54 +1,62 @@
-{-# LANGUAGE NoMonomorphismRestriction, TupleSections #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE TupleSections             #-}
+{-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE FlexibleContexts          #-}
+
+{-# OPTIONS_GHC -Wall                    #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults  #-}
+
 module Plot
   ( plot
-  , scatterplot
-  , grid
-  , gridSquare
-  , histogram
+  , background
+  , ticksX
+  , ticksY
   ) where
 
 import Diagrams.Prelude
+import Text.Printf
+import Diagrams.TwoD.Text
 
-gridSquare = alignBL $ unitSquare # fc beige # lc white # lw 0.001
+gridLineWidth :: Double
+gridLineWidth = 0.001
 
--- | Plots a function.
-plot func xs = scaleX sX . scaleY sY . alignBL . position $ plotf ++ grid where
-    ys = map func xs
-    ysmax = fromInteger . ceiling . maximum $ ys
-    ysmin = fromInteger . floor . minimum $ ys
-    xsmax = fromInteger . ceiling . maximum $ xs
-    xsmin = fromInteger . floor . minimum $ xs
-    sX = 1 / (xsmax - xsmin + 1)
-    sY = 1 / (ysmax - ysmin)
-    grid = zip [p2 (x,y) | x <- [xsmin-1..xsmax-1], y <- [ysmin..ysmax-1]] (repeat gridSquare)
-    plotf = zip (zipWith (\x y -> p2 (x,y)) xs ys) (repeat dot)
-    dot = circle 0.1 # fc blue # lw 0.005
+fSize :: Double
+fSize = 0.02
 
--- | Creates a scatteplot.
-scatterplot ps = scaleX sX . scaleY sY . alignBL . position $ plotp ++ grid where
-    ysmax = fromInteger . ceiling . maximum $ map snd ps
-    ysmin = fromInteger . floor . minimum $ map snd ps
-    xsmax = fromInteger . ceiling . maximum $ map fst ps
-    xsmin = fromInteger . floor . minimum $ map fst ps
-    sX = 1 / (xsmax - xsmin + 1)
-    sY = 1 / (ysmax - ysmin)
-    grid = zip [p2 (x,y) | x <- [xsmin-1..xsmax-1], y <- [ysmin..ysmax-1]] (repeat gridSquare)
-    plotp = zip (map p2 ps) (repeat dot)
-    dot = circle 0.1 # fc blue # lw 0.005
+cSize :: Double
+cSize = 0.001
 
-histogram ps = scaleX sX . scaleY sY . alignBL . position $ hist ++ grid where
-    ysmax = fromInteger . ceiling $ maximum ps
-    ysmin = fromInteger . floor $ minimum ps
-    xsmax = fromIntegral $ length ps
-    xsmin = 0.0
-    sX = 1 / (xsmax - xsmin + 1)
-    sY = 1 / (ysmax - ysmin)
-    grid = zip [p2 (x,y) | x <- [xsmin-1..xsmax-1], y <- [ysmin..ysmax-1]] (repeat gridSquare)
+background s = rect (s * 1.2) (s * 1.2) # showOrigin
 
-    cell w h = alignBL $ rect w h # fc blue # lc white # lw 0.001 # opacity 0.7
-    hist = zip (map p2 $ map (,0) $ map fromIntegral [0..])
-               (map (cell 1) ps)
+ticksX :: (Renderable (Path R2) b, Renderable Text b) =>
+          [Double] -> Diagram b R2
+ticksX xs = (mconcat $ Prelude.map tick xs)  <> line
+  where
+    maxX   = maximum xs
+    line   = fromOffsets [r2 (maxX, 0)] # lw gridLineWidth
+    tick x = endpt # translate tickShift
+      where
+        tickShift = r2 (x, 0)
+        endpt     = topLeftText (printf "%.2f" x) # fontSize fSize <>
+                    circle cSize # fc green # lw 0
 
--- | Draws an empty grid.
-grid m n = scaleX (1/m) . scaleY (1/n) . alignBL. position $ grid' where
-    grid' = zip [p2 (x,y) | x <- [1..m], y <- [1..n]] (repeat gridSquare)
+ticksY :: (Renderable Text b, Renderable (Path R2) b) =>
+          [Double] -> Diagram b R2
+ticksY xs = (mconcat $ Prelude.map tick xs)  <> line
+  where
+    maxX   = maximum xs
+    line   = fromOffsets [r2 (0, maxX)] # lw gridLineWidth
+    tick x = endpt # translate tickShift
+      where
+        tickShift = r2 (0, x)
+        endpt     = myText (printf "%.2f" x) # fontSize fSize <>
+                    circle cSize # fc green # lw 0
+        myText = alignedText 1.0 0.5
+
+plot sX sY ps = mconcat qs
+  where
+    qs  = scaleX sX $
+          scaleY sY $
+          map (\x -> dot # translate (r2 x)) ps
+    dot = circle 0.01 # fc blue # lw 0.005
