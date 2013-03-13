@@ -1,3 +1,18 @@
+# The Leapfrog Method
+
+This chapter explains the Leapfrog Method for simulating motion under
+Newton's Laws of Gravity using the [repa parallel array][repa]
+package. It starts with an explanation of *repa*'s type system and
+usage and concludes with examination of the generated code and the
+parallelism taking place using the [eventlog][eventlog] package.
+
+  [repa]: http://hackage.haskell.org/package/repa
+  [eventlog]: http://hackage.haskell.org/package/ghc-events
+
+## The Repa Library
+
+## Implementing Leapfrog
+
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > {-# LANGUAGE FlexibleContexts          #-}
 > {-# LANGUAGE TypeOperators             #-}
@@ -177,34 +192,43 @@ Now we can calculate the forces in repa using the above equation.
 >         fs = Repa.map (* (negate gConst)) $
 >              (pointDiffs qs) /^ ds
 
-Next we turn our attention to the leapfrog scheme.
+Next we turn our attention to the leapfrog scheme. Note we
+parameterize the velocity and position stepping functions by a weight
+which specifies which proportion of the step size should be
+taken. When we evolve our system this will be 1.0 so that position and
+velocity really do "leapfrog" each other. However, when we wish to
+calculate the total energy of the system then we need the positions
+and velocities to be taken at the same time and so we will wish to
+advance our system by half a timestep so this proportion will be 0.5.
 
 > stepVelocity :: ( Source a Double
 >                 , Source b Double
 >                 , Source c Double
 >                 )  =>
+>                 Double ->
 >                 Array a DIM2 Double ->
 >                 Array b DIM2 Double ->
 >                 Array c DIM1 Double ->
 >                 Array D DIM2 Double
-> stepVelocity vs fs ms = vs +^ (fs *^ dt2 /^ ms2)
+> stepVelocity p vs fs ms = vs +^ (fs *^ dt2 /^ ms2)
 >   where
 >     ms2 :: Array D DIM2 Double
 >     ms2 = extend (Any :. j) ms
 >     dt2 :: Array D DIM2 Double
->     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [dt]
+>     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [p * dt]
 >     (Z :. i :. j) = extent fs
 
 > stepPosition :: ( Source a Double
 >                 , Source b Double
 >                 ) =>
+>                 Double ->
 >                 Array a DIM2 Double ->
 >                 Array b DIM2 Double ->
 >                 Array D DIM2 Double
-> stepPosition xs vs = xs +^ (vs *^ dt2)
+> stepPosition p xs vs = xs +^ (vs *^ dt2)
 >   where
 >     dt2 :: Array D DIM2 Double
->     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [dt]
+>     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [p * dt]
 >     (Z :. i :. j) = extent vs
 
 Now we need some initial conditions to start our simulation.
@@ -382,8 +406,8 @@ For completeness we give the Sun's starting conditions.
 >             m (Positions, Velocities)
 > stepOnce rs vs = do
 >   fs    <- sumP $ transpose $ forces rs masses
->   newVs <- computeP $ stepVelocity vs fs masses
->   newRs <- computeP $ stepPosition rs newVs
+>   newVs <- computeP $ stepVelocity 1.0 vs fs masses
+>   newRs <- computeP $ stepPosition 1.0 rs newVs
 >   return (newRs, newVs)
 
 Note the *forall*. For this we have to use the *LANGUAGE* pragmas
@@ -413,6 +437,16 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >       rsVs <- stepAux (n-1) newRs newVs
 >       return $ (newRs, newVs) : rsVs
 
+As already discusse, the Leapfrog method conserves the total energy of
+a system. We can check this. First we calculate the kinetic energy:
+
+$$
+\frac{1}{2}\sum_{i=1}^N m_i v_i^2
+$$
+
+where $N$ is total number of planets, $m_i$ is the mass of the $i$-th
+planet and $v_i$ is the speed of the $i$-th planet.
+
 > kineticEnergy :: (Source a Mass, Source b Speed, Monad m) =>
 >                  Array a DIM1 Mass ->
 >                  Array b DIM2 Speed ->
@@ -421,6 +455,29 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >   vs2 <- sumP $ Repa.map (^2) vss
 >   ke2 <- sumP $ ms *^ vs2
 >   return $ 0.5 * ke2!Z
+
+Note that the matrix of individual potential energies is symmetric so
+(again) we are performing roughly twice as many calculations as
+necessary.
+
+> potentialEnergy :: (Source a Mass, Source b Distance, Monad m) =>
+>                    Array a DIM1 Mass ->
+>                    Array b DIM2 Distance ->
+>                    m Energy
+> potentialEnergy ms pss = do
+>   dss2 <- sumP $ Repa.map (^2) $ pointDiffs pss
+>   let dss = Repa.map sqrt $
+>             Repa.map (+ (eps^2)) dss2
+>       mss = prodPairsMasses ms
+>       ess = Repa.map (* 0.5) $             -- We should only count
+>                                            -- the potential energy
+>                                            -- from each pair of
+>                                            -- particles once.
+>             Repa.map (* (negate gConst)) $
+>             mss /^ dss
+>   es <- sumP ess
+>   e <- sumP es
+>   return $ e!Z
 
 This should give us about one orbit of Jupiter.
 
@@ -452,3 +509,5 @@ This should give us about one orbit of Jupiter.
 >     (plot 0.1 0.1 scatterEarth) <>
 >     (plot 0.1 0.1 scatterJupiter)
 >
+
+## Examing Performance
