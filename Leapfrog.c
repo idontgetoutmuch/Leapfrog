@@ -1,9 +1,3 @@
-/* nbody.c
- * adabted from f2c code generated from Aarseth's
- * Fortran code
- */
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -20,25 +14,45 @@
 #define kNumDims 3
 
 /* per-particle physical and dynamic properties */
-double masses[kMaxParticles], positions[kMaxParticles][kNumDims],
+
+double masses[kMaxParticles],
+  positions[kMaxParticles][kNumDims],
+  lf_positions[kMaxParticles][kNumDims],
   previousPositions[kMaxParticles][kNumDims],
   previousVelocities[kMaxParticles][kNumDims],
-  forces[kMaxParticles][kNumDims], forceDots[kMaxParticles][kNumDims];
+  forces[kMaxParticles][kNumDims],
+  lf_forces[kMaxParticles][kNumDims],
+  forceDots[kMaxParticles][kNumDims];
 
 /* other per-particle state variables */
-double steps[kMaxParticles], t0[kMaxParticles], t1[kMaxParticles], t2[kMaxParticles],
-    t3[kMaxParticles], d1[kMaxParticles][kNumDims], d2[kMaxParticles][kNumDims],
-    d3[kMaxParticles][kNumDims];
 
-double currentTime = 0.0, nextTime = 0.0, timeStep, finalTime, eta, epsilonSquared;
+double steps[kMaxParticles],
+  t0[kMaxParticles],
+  t1[kMaxParticles],
+  t2[kMaxParticles],
+  t3[kMaxParticles],
+  d1[kMaxParticles][kNumDims],
+  d2[kMaxParticles][kNumDims],
+  d3[kMaxParticles][kNumDims];
 
-int numSteps = 0, numParticles;
+double currentTime = 0.0,
+  nextTime = 0.0,
+  timeStep,
+  finalTime,
+  eta,
+  epsilonSquared;
+
+double g = 6.67384e-11;		/* gravitational constant */
+
+int numSteps = 0,
+  numParticles;
 
 void readParameters();
 void readParticles();
 void initializeParticles();
 void outputData();
 void advanceParticles();
+void updateForce();
 void writeAllParticleData();
 
 FILE * inputFile;
@@ -46,8 +60,6 @@ FILE * outputFile;
 
 int main()
 {
-    /* the input file can either be a file or the standard input */
-    /*inputFile = stdin;*/
     inputFile = fopen("initc.data", "r");
 
     readParameters();
@@ -265,6 +277,23 @@ void outputData()
            currentTime,
            numSteps,
            totalEnergy);
+}
+
+void updateForce() {
+  double d, d2, d2_softened, d3_2;
+  int i, j, k;
+  for (i = 0; i < numParticles; i++) {
+    for (j = 0; j < numParticles; j++) {
+      d2 = 0;
+      for (k = 0; k < kNumDims; k++) {
+	d   = lf_positions[i][k] - lf_positions[j][k];
+	d2 += d * d;
+      }
+      d2_softened = d2 + epsilonSquared;
+      d3_2 = d2_softened * sqrt(d2_softened);
+      lf_forces[i][j] = -g * masses[i] * masses[j] / d3_2;
+    }
+  }
 }
 
 void advanceParticles()
