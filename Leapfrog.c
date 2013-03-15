@@ -42,7 +42,9 @@ double currentTime = 0.0,
   eta,
   epsilonSquared;
 
-double g = 6.67384e-11;		/* gravitational constant */
+/* Gravitational constant */
+
+double g = 6.67384e-11;
 
 int numSteps = 0,
   numParticles;
@@ -50,9 +52,11 @@ int numSteps = 0,
 void readParameters();
 void readParticles();
 void initializeParticles();
+void lf_initializeParticles();
 void outputData();
 void advanceParticles();
 void updateForce();
+void updateVelocities();
 void writeAllParticleData();
 
 FILE * inputFile;
@@ -60,26 +64,49 @@ FILE * outputFile;
 
 int main()
 {
-    inputFile = fopen("initc.data", "r");
+  int i;
+  inputFile = fopen("initc.data", "r");
 
-    readParameters();
-    readParticles();
-    outputFile = fopen("sphere.data", "w");
-    initializeParticles();
+  readParameters();
+  readParticles();
+  outputFile = fopen("sphere.data", "w");
+  lf_initializeParticles();
+  for (i = 0; i < numParticles; i++) {
+    printf("F_x = %14.7g, F_y = %14.7g, F_z = %14.7g\n",
+	   lf_forces[i][0],
+	   lf_forces[i][1],
+	   lf_forces[i][2]
+	   );
+  }
+  for (i = 0; i < numParticles; i++) {
+    printf("V_x = %14.7g, V_y = %14.7g, V_z = %14.7g\n",
+	   previousVelocities[i][0],
+	   previousVelocities[i][1],
+	   previousVelocities[i][2]
+	   );
+  }
+  updateVelocities();
+  for (i = 0; i < numParticles; i++) {
+    printf("V_x = %14.7g, V_y = %14.7g, V_z = %14.7g\n",
+	   previousVelocities[i][0],
+	   previousVelocities[i][1],
+	   previousVelocities[i][2]
+	   );
+  }
 
-    while(1)
-    {
-        outputData();
-        if(currentTime > finalTime)
-            break;
-        nextTime += timeStep;
-        advanceParticles();
-    }
+    /* while(1) */
+    /* { */
+    /*     outputData(); */
+    /*     if(currentTime > finalTime) */
+    /*         break; */
+    /*     nextTime += timeStep; */
+    /*     advanceParticles(); */
+    /* } */
 
-    fclose(outputFile);
-    fclose(inputFile);
+  fclose(outputFile);
+  fclose(inputFile);
 
-    return 0;
+  return 0;
 }
 
 
@@ -114,24 +141,18 @@ void readParticles()
     }
 }
 
-void initializeParticles()
+void lf_initializeParticles()
 {
     int i,j,k;
-    double deltaVel[kNumDims], deltaPos[kNumDims], deltaForce[kNumDims],
-        deltaForceDot[kNumDims], f1Dot[kNumDims], f2Dot[kNumDims], f3Dot[kNumDims];
-    double a, b, c, d, e;
+    double deltaPos[kNumDims];
+    double a, b;
 
-    /* obtain total forces and first derivative for each body */
-    printf("Initializing particles\n");
-    printf("Obtaining total forces and first derivatives\n");
+    printf("Initializing particles %i %i\n", numParticles, kNumDims);
     for(i=0; i<numParticles; i++)
     {
         for(k=0; k<kNumDims; k++)
         {
-            forces[i][k] = 0.0;
-            forceDots[i][k] = 0.0;
-            d2[i][k] = 0.0;
-            d3[i][k] = 0.0;
+            lf_forces[i][k] = 0.0;
         }
         for(j=0; j<numParticles; j++)
         {
@@ -139,83 +160,18 @@ void initializeParticles()
             {
                 for(k=0; k<kNumDims; k++)
                 {
-                    deltaPos[k] = previousPositions[j][k] - previousPositions[i][k];
-                    deltaVel[k] = previousVelocities[j][k] - previousVelocities[i][k];
+                    deltaPos[k] = previousPositions[i][k] - previousPositions[j][k];
                 }
                 a = 1.0/(lengthSquared(deltaPos) + epsilonSquared);
-                b = masses[j] * a * sqrt(a);
-                c = 3.0 * a * dot(deltaPos, deltaVel);
+                b = -g * masses[i] * masses[j] * a * sqrt(a);
                 for(k=0; k<kNumDims; k++)
                 {
-                    forces[i][k] += b * deltaPos[k];
-                    forceDots[i][k] += b * (deltaVel[k] - c * deltaPos[k]);
+                    lf_forces[i][k] += b * deltaPos[k];
                 }
             }
         }
-        if(i%(numParticles/20) == 0)
-        {
-            printf(".");
-            fflush(stdout);
-        }
     }
     printf("\n");
-
-    /* form second and third derivative */
-    printf("Forming second and third derivatives\n");
-    for(i=0; i<numParticles; i++)
-    {
-        for(j=0; j<numParticles; j++)
-        {
-            if(i!=j)
-            {
-                for(k=0; k<kNumDims; k++)
-                {
-                    deltaPos[k] = previousPositions[j][k] - previousPositions[i][k];
-                    deltaVel[k] = previousVelocities[j][k] - previousVelocities[i][k];
-                    deltaForce[k] = forces[j][k] - forces[i][k];
-                    deltaForceDot[k] = forceDots[j][k] - forceDots[i][k];
-                }
-                a = 1.0/(lengthSquared(deltaPos) + epsilonSquared);
-                b = masses[j] * a * sqrt(a);
-                c = a * dot(deltaPos, deltaVel);
-                d = a * (lengthSquared(deltaVel) + dot(deltaPos, deltaForce)) + c*c;
-                e = a * (9.0 * dot(deltaVel, deltaForce) + 3.0 * dot(deltaPos, deltaForceDot))
-                    + c * (9.0 * d - 12.0 * c * c);
-                for(k=0; k<kNumDims; k++)
-                {
-                    f1Dot[k] = deltaVel[k] - 3.0 * c * deltaPos[k];
-                    f2Dot[k] = b * (deltaForce[k] - 6.0 * c * f1Dot[k] - 3.0 * d * deltaPos[k]);
-                    f3Dot[k] = b * (deltaForceDot[k] - 9.0 * d * f1Dot[k] - e * deltaPos[k]);
-                    d2[i][k] += f2Dot[k];
-                    d3[i][k] += f3Dot[k] - 9.0 * c * f2Dot[k];
-                }
-            }
-        }
-        if(i%(numParticles/20) == 0)
-        {
-            printf(".");
-            fflush(stdout);
-        }
-    }
-    printf("\n");
-
-    /* initialize integration steps and convert to force differences */
-    for(i=0; i<numParticles; i++)
-    {
-        steps[i] = sqrt(eta * sqrt(lengthSquared(forces[i])/lengthSquared(d2[i])));
-        t0[i] = currentTime;
-        t1[i] = currentTime - steps[i];
-        t2[i] = currentTime - 2.0 * steps[i];
-        t3[i] = currentTime - 3.0 * steps[i];
-        for(k=0; k<kNumDims; k++)
-        {
-            d1[i][k] = (d3[i][k]*steps[i]/6.0 - 0.5*d2[i][k])*steps[i] + forceDots[i][k];
-            d2[i][k] = 0.5*d2[i][k] - 0.5*d3[i][k]*steps[i];
-            d3[i][k] /= 6.0;
-            forces[i][k] *= 0.5;
-            forceDots[i][k] /= 6.0;
-        }
-    }
 }
 
 void outputData()
@@ -291,7 +247,25 @@ void updateForce() {
       }
       d2_softened = d2 + epsilonSquared;
       d3_2 = d2_softened * sqrt(d2_softened);
-      lf_forces[i][j] = -g * masses[i] * masses[j] / d3_2;
+      for (k = 0; k < kNumDims; k++) {
+	lf_forces[i][k] += -g * masses[i] * masses[j] / d3_2;
+      }
+    }
+  }
+}
+
+void updateVelocities() {
+  int i, k;
+  for (i = 0; i < numParticles; i++) {
+    for (k = 0; k < kNumDims; k++) {
+      printf("prevV[%i][%i] = %10.7g, lf_forces[%i][%i] = %10.7g\n",
+	     i, k, previousVelocities[i][k],
+	     i, k, lf_forces[i][k]
+	     );
+      printf("masses[%i] = %10.7g\n",
+	     i, masses[i]
+	     );
+      previousVelocities[i][k] += lf_forces[i][k] * timeStep / masses[i];
     }
   }
 }
