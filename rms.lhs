@@ -1,4 +1,27 @@
-# The Leapfrog Method
+Preface
+=======
+
+The Haskell programming language is now almost 25 years old; older
+still if you count its antecedents. The benefits of using it are well
+documented and there are many good expository books at an introductory
+and practcial level.
+
+* About numerical methods
+
+* Why functional programming matters
+
+* Haskell for numerical methods has come of age
+
+* Target audience is the experienced Haskell programmer with little
+knowledge of numerical methods.
+
+Comonads?
+=========
+
+Probably not a whole chapter on them.
+
+The Leapfrog Method
+===================
 
 This chapter explains the Leapfrog Method for simulating motion under
 Newton's Laws of Gravity using the [repa parallel array][repa]
@@ -9,9 +32,11 @@ parallelism taking place using the [eventlog][eventlog] package.
   [repa]: http://hackage.haskell.org/package/repa
   [eventlog]: http://hackage.haskell.org/package/ghc-events
 
-## The Repa Library
+The Repa Library
+----------------
 
-## Implementing Leapfrog
+Implementing Leapfrog
+---------------------
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > {-# LANGUAGE FlexibleContexts          #-}
@@ -24,14 +49,21 @@ parallelism taking place using the [eventlog][eventlog] package.
 > {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
 
 > import Data.Array.Repa as Repa hiding ((++), zipWith)
-
 > import Control.Monad
+
+> import Data.Random ()
+> import Data.Random.Distribution.Uniform
+> import Data.RVar
+> import System.Random
+> import Control.Monad.State
+> import Control.Monad.Identity
+
 
 FIXME: Temporary diagram
 
-> import Diagrams.Prelude hiding (Any, D, (*^), All)
-> import Diagrams.Backend.Cairo.CmdLine
-> import Plot
+-- > import Diagrams.Prelude hiding (Any, D, (*^), All)
+-- > import Diagrams.Backend.Cairo.CmdLine
+-- > import Plot
 
 FIXME: END
 
@@ -400,40 +432,47 @@ For completeness we give the Sun's starting conditions.
 
 > type Velocities = Array U DIM2 Speed
 > type Positions  = Array U DIM2 Distance
+> type Masses     = Array U DIM1 Mass
 
 > stepOnce :: Monad m =>
->             Positions -> Velocities ->
+>             Masses -> Positions -> Velocities ->
 >             m (Positions, Velocities)
-> stepOnce rs vs = do
+> stepOnce masses rs vs = do
 >   fs    <- sumP $ transpose $ forces rs masses
 >   newVs <- computeP $ stepVelocity 1.0 vs fs masses
 >   newRs <- computeP $ stepPosition 1.0 rs newVs
 >   return (newRs, newVs)
+>
+> getForces :: Monad m =>
+>             Masses -> Positions -> Velocities ->
+>             m (Array U DIM2 Double)
+> getForces masses rs vs = do
+>   sumP $ transpose $ forces rs masses
 
 Note the *forall*. For this we have to use the *LANGUAGE* pragmas
 *ScopedTypeVariables* and *RankNTypes*.
 
 > stepN :: forall m . Monad m =>
->          Int -> Positions -> Velocities ->
+>          Int -> Masses -> Positions -> Velocities ->
 >          m (Positions, Velocities)
-> stepN n = curry updaterMulti
+> stepN n masses = curry updaterMulti
 >   where
 >     updaterMulti = foldr (>=>) return updaters
 >     updaters :: [(Positions, Velocities) -> m (Positions, Velocities)]
->     updaters = replicate n (uncurry stepOnce)
+>     updaters = replicate n (uncurry (stepOnce masses))
 
 FIXME: Surely this can be as an instance of some nice recursion pattern.
 
 > stepN' :: Monad m =>
->           Int -> Positions -> Velocities ->
+>           Int -> Masses -> Positions -> Velocities ->
 >           m [(Positions, Velocities)]
-> stepN' n rs vs = do
+> stepN' n ms rs vs = do
 >   rsVs <- stepAux n rs vs
 >   return $ (rs, vs) : rsVs
 >   where
 >     stepAux 0  _  _ = return []
 >     stepAux n rs vs = do
->       (newRs, newVs) <- stepOnce rs vs
+>       (newRs, newVs) <- stepOnce ms rs vs
 >       rsVs <- stepAux (n-1) newRs newVs
 >       return $ (newRs, newVs) : rsVs
 
@@ -482,32 +521,110 @@ necessary.
 This should give us about one orbit of Jupiter.
 
 > nSteps :: Int
-> nSteps = 12*36
+> nSteps = 3000*36
+
+-- > main :: IO ()
+-- > main = do
+-- >   rsVs <- stepN nSteps masses initRs initVs
+-- >   putStrLn $ show rsVs
 
 > main :: IO ()
 > main = do
->   rsVs <- stepN' nSteps initRs initVs
+>   rsVs <- stepN' nSteps masses initRs initVs
 >   let rs = Prelude.map fst rsVs
 >       vs = Prelude.map snd rsVs
->   let earthXs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (0 :: Int))) rs
->       earthYs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (1 :: Int))) rs
->       jupiterXs = Prelude.map (\r -> r!(Z :. (1 :: Int) :. (0 :: Int))) rs
->       jupiterYs = Prelude.map (\r -> r!(Z :. (1 :: Int) :. (1 :: Int))) rs
->       jupiterDs = zipWith (\x y -> sqrt $ x^2 + y^2) jupiterXs jupiterYs
->       scaledEarthXs = Prelude.map (* 1e-11) earthXs
->       scaledEarthYs = Prelude.map (* 1e-11) earthYs
->       scaledJupiterXs = Prelude.map (* 1e-11) jupiterXs
->       scaledJupiterYs = Prelude.map (* 1e-11) jupiterYs
->       scatterEarth = zip scaledEarthXs scaledEarthYs
->       scatterJupiter = zip scaledJupiterXs scaledJupiterYs
->   putStrLn $ show $ minimum jupiterDs
->   putStrLn $ show $ maximum jupiterDs
->   defaultMain $
->     (background 2.0) <>
->     ticksX [-1.0, -0.9..1.0] <>
->     ticksY [-1.0, -0.9..1.0] <>
->     (plot 0.1 0.1 scatterEarth) <>
->     (plot 0.1 0.1 scatterJupiter)
->
+>   kes <- mapM (kineticEnergy masses) vs
+>   pes <- mapM (potentialEnergy masses) rs
+>   let tes = zipWith (+) kes pes
+>       maxTe = maximum tes
+>       minTe = minimum tes
+>   putStrLn $ "Relative error in total energy (J): " ++
+>              show ((maxTe - minTe) / ((maxTe + minTe) /2))
 
-## Examing Performance
+-- >   let earthXs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (0 :: Int))) rs
+-- >       earthYs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (1 :: Int))) rs
+-- >       jupiterXs = Prelude.map (\r -> r!(Z :. (1 :: Int) :. (0 :: Int))) rs
+-- >       jupiterYs = Prelude.map (\r -> r!(Z :. (1 :: Int) :. (1 :: Int))) rs
+-- >       jupiterDs = zipWith (\x y -> sqrt $ x^2 + y^2) jupiterXs jupiterYs
+-- >       scaledEarthXs = Prelude.map (* 1e-11) earthXs
+-- >       scaledEarthYs = Prelude.map (* 1e-11) earthYs
+-- >       scaledJupiterXs = Prelude.map (* 1e-11) jupiterXs
+-- >       scaledJupiterYs = Prelude.map (* 1e-11) jupiterYs
+-- >       scatterEarth = zip scaledEarthXs scaledEarthYs
+-- >       scatterJupiter = zip scaledJupiterXs scaledJupiterYs
+-- >   putStrLn $ show $ minimum jupiterDs
+-- >   putStrLn $ show $ maximum jupiterDs
+-- >   defaultMain $
+-- >     (background 2.0) <>
+-- >     ticksX [-1.0, -0.9..1.0] <>
+-- >     ticksY [-1.0, -0.9..1.0] <>
+-- >     (plot 0.1 0.1 scatterEarth) <>
+-- >     (plot 0.1 0.1 scatterJupiter)
+-- >
+
+
+Globular Cluster
+----------------
+
+> mass :: Mass
+> mass = 1e24
+>
+> nInCluster :: Int
+> nInCluster = 120
+
+We represent our system of bodies of identical mass as a
+1-dimensional (unboxed) array.
+
+> ms :: Array U DIM1 Double
+> ms = runIdentity $
+>      computeP $
+>      Repa.map (mass *) $
+>      fromListUnboxed (Z :. nInCluster) $
+>      take nInCluster $ repeat 1.0
+>
+> rands :: Int -> Int -> Double -> Double -> [Double]
+> rands seed n a b =
+>   fst $ runState (replicateM n (sampleRVar (uniform a b))) (mkStdGen seed)
+
+We assign our bodies random positions inside a box using a
+2-dimensional (unboxed) array.
+
+> randomVals :: Int -> Int -> Double -> Array U DIM2 Double
+> randomVals seed n r =
+>   fromListUnboxed (Z :. n :. spaceDim) $
+>   Prelude.map (fromIntegral . round) $
+>   rands seed (spaceDim * n) 0 r
+>
+> startPs :: Array U DIM2 Double
+> startPs = randomVals 0 nInCluster r
+>
+> startVs :: Array U DIM2 Double
+> startVs = randomVals 1 nInCluster r
+
+-- > main :: IO ()
+-- > main = do
+-- >   rsVs <- stepN nSteps ms startPs startVs
+-- >   putStrLn $ show rsVs
+
+Examing Performance
+-------------------
+
+Monte Carlo Methods
+===================
+
+Random Number in Haskell
+------------------------
+
+Metropolis-Hasting Algorithm
+----------------------------
+
+References
+==========
+
+FIXME: Should be bibtex but for now we just list them.
+
+http://physics.ucsc.edu/~peter/242/leapfrog.pdf
+
+http://en.wikipedia.org/wiki/Leapfrog_integration
+
+http://ode-math.com/PDF_Files/ChapterFirstPages/First38PagesOFChapter5.pdf
