@@ -65,6 +65,8 @@ FIXME: Temporary diagram
 -- > import Diagrams.Backend.Cairo.CmdLine
 -- > import Plot
 
+> import Text.Printf
+
 FIXME: END
 
 We wish to model planetary motion using the
@@ -116,8 +118,9 @@ Some physical constants for our system.
 
 And some constants for our finite difference method.
 
-> eps, days, t, timestepDays, dt :: Double
-> eps = 0.1*r                 -- softening constant
+> eps2, days, t, timestepDays, dt :: Double
+> eps2 = 0.25                 -- softening constant squared
+>                             -- FIXME: Probably far too small
 > days = 36500*100            -- total time in days
 > t = days*k                  -- total time
 > timestepDays = 10           -- timestep in days
@@ -216,7 +219,7 @@ Now we can calculate the forces in repa using the above equation.
 >   where ds = repDim2to3Outer $
 >              Repa.map (^3) $
 >              Repa.map sqrt $
->              Repa.map (+ (eps^2)) $
+>              Repa.map (+ eps2) $
 >              foldS (+) 0 $
 >              Repa.map (^2) $
 >              pointDiffs qs
@@ -506,7 +509,7 @@ necessary.
 > potentialEnergy ms pss = do
 >   dss2 <- sumP $ Repa.map (^2) $ pointDiffs pss
 >   let dss = Repa.map sqrt $
->             Repa.map (+ (eps^2)) dss2
+>             Repa.map (+ eps2) dss2
 >       mss = prodPairsMasses ms
 >       ess = Repa.map (* 0.5) $             -- We should only count
 >                                            -- the potential energy
@@ -533,6 +536,14 @@ This should give us about one orbit of Jupiter.
 >   rsVs <- stepN' nSteps masses initRs initVs
 >   let rs = Prelude.map fst rsVs
 >       vs = Prelude.map snd rsVs
+>       erx = (rs!!nSteps)!(Z :. (0 :: Int) :. (0 :: Int))
+>       ery = (rs!!nSteps)!(Z :. (0 :: Int) :. (1 :: Int))
+>       erz = (rs!!nSteps)!(Z :. (0 :: Int) :. (2 :: Int))
+>       srx = (rs!!nSteps)!(Z :. (2 :: Int) :. (0 :: Int))
+>       sry = (rs!!nSteps)!(Z :. (2 :: Int) :. (1 :: Int))
+>       srz = (rs!!nSteps)!(Z :. (2 :: Int) :. (2 :: Int))
+>   putStrLn $ printf "%16.10e %16.10e %16.10e" erx ery erz
+>   putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
 >   kes <- mapM (kineticEnergy masses) vs
 >   pes <- mapM (potentialEnergy masses) rs
 >   let tes = zipWith (+) kes pes
