@@ -6,29 +6,29 @@
 #define lengthSquared(a) dot(a,a)
 #define length(a) sqrt(lengthSquared(a))
 
-#define cross(c,a,b) c[0] = (a[1])*(b[2]) - (a[2])*(b[1]); \
-                     c[1] = (a[2])*(b[0]) - (a[0])*(b[2]); \
-                     c[2] = (a[0])*(b[1]) - (a[1])*(b[0]);
-
-#define kMaxParticles 2048
+#define kNumParticles 3
 #define kNumDims 3
 
-double masses[kMaxParticles],
-  positions[kMaxParticles][kNumDims],
-  lf_positions[kMaxParticles][kNumDims],
-  lf_velocities[kMaxParticles][kNumDims],
-  previousPositions[kMaxParticles][kNumDims],
-  previousVelocities[kMaxParticles][kNumDims],
-  forces[kMaxParticles][kNumDims],
-  lf_forces[kMaxParticles][kNumDims],
-  forceDots[kMaxParticles][kNumDims];
+double masses[kNumParticles] =
+ {
+   5.9722e24, 1.8986e27, 1.9889e30
+ };
+double lf_positions[kNumParticles][kNumDims] =
+  {
+     1.470983e11, 0.000000, 0.000000,
+    -7.405736e11, 0.000000, 0.000000,
+     0.000000e00, 0.000000, 0.000000
+  };
+double lf_velocities[kNumParticles][kNumDims] =
+  {
+      2.694354528161541e03,   3.016946927465788e04,  0.000000,
+     -1.0965244901087316e02, -1.3710001990210707e04, 0.000000,
+      0.000000,               0.000000,              0.000000
+  };
+double lf_forces[kNumParticles][kNumDims];
 
-double currentTime = 0.0,
-  nextTime = 0.0,
-  timeStep,
-  finalTime,
-  eta,
-  epsilonSquared;
+double timeStep = 864000.0;
+double epsilonSquared = 0.250000;
 
 int nSteps,
   currStep;
@@ -37,10 +37,8 @@ int nSteps,
 
 double g = 6.67384e-11;
 
-int numSteps = 0,
-  numParticles;
+int numParticles = kNumParticles;
 
-void readParameters();
 void lf_readParticles();
 void initializeParticles();
 void lf_initializeParticles();
@@ -58,48 +56,20 @@ int main()
 {
   int currStep;
 
-  lf_inputFile = fopen("initc.data", "r");
-  readParameters();
-  lf_readParticles();
-  fclose(lf_inputFile);
-
-  outputFile = fopen("sphere.data", "w");
   lf_initializeParticles();
 
-  nSteps = 10; /* (int) finalTime / timeStep; */
+  nSteps = 1000000;
 
   for (currStep = 0; currStep < nSteps; currStep++) {
-
-    printf("\n           steps: %14i\n", currStep);
-    lf_outputData();
     updateVelocities();
     updatePositions();
     updateForces();
   }
 
-  fclose(outputFile);
-
   writeAllParticleData();
-
+  printf("\n");
+  lf_outputData();
   return 0;
-}
-
-void readParameters()
-{
-    printf("Enter numParticles, eta, timeStep, finalTime and epsilonSquared: ");
-    fscanf(lf_inputFile, "%i", &numParticles);
-    if(numParticles > kMaxParticles)
-    {
-        fprintf(stderr, "The program currently supports up to %i particles.\n"
-                        "If you reqire more particles, please increase\n"
-                        "kMaxParticles in nbody.c and recompile.\n", kMaxParticles);
-        exit(1);
-    }
-    fscanf(lf_inputFile, "%lf", &eta);
-    fscanf(lf_inputFile, "%lf", &timeStep);
-    fscanf(lf_inputFile, "%lf", &finalTime);
-    fscanf(lf_inputFile, "%lf", &epsilonSquared);
-    printf("\n");
 }
 
 void lf_readParticles()
@@ -121,7 +91,6 @@ void lf_initializeParticles()
     double deltaPos[kNumDims];
     double a, b;
 
-    printf("Initializing particles\n");
     for(i=0; i<numParticles; i++)
     {
         for(k=0; k<kNumDims; k++)
@@ -164,20 +133,20 @@ void lf_outputData()
 	velocity[k] = lf_velocities[i][k];
       totalEnergy += 0.5 * masses[i] * lengthSquared(velocity);
       totalMass += masses[i];
-      fprintf(outputFile, "%14.7g %14.7g %14.7g %14.7g \n",
-	      masses[i], positions[i][0], positions[i][1], positions[i][2]);
     }
+    printf("          kinetic energy: %14.7g\n",
+           totalEnergy);
 
     /* potential energy */
     for(i=0; i<numParticles; i++) {
       for(j=0; j<i; j++) {
 	for(k=0; k<kNumDims; k++)
-	  deltaPos[k] = positions[i][k] - positions[j][k];
+	  deltaPos[k] = lf_positions[i][k] - lf_positions[j][k];
 	totalEnergy -= masses[i]*masses[j] / sqrt(lengthSquared(deltaPos) + epsilonSquared);
       }
     }
 
-    printf("          energy: %14.7g\n",
+    printf("          total energy: %14.7g\n",
            totalEnergy);
 }
 
@@ -226,17 +195,15 @@ void updatePositions() {
 void writeAllParticleData() {
   FILE * file;
   int i;
-  file = fopen("particlesLocal.data", "w");
   for(i=0; i<numParticles; i++) {
-    fprintf(file, "%i\n"
-	    "      f = <%16.10e %16.10e %16.10e>\n"
-	    "    pos = <%16.10e %16.10e %16.10e>\n"
-	    "    vel = <%16.10e %16.10e %16.10e>\n",
-	    i,
-	    lf_forces[i][0], lf_forces[i][1], lf_forces[i][2],
-	    lf_positions[i][0], lf_positions[i][1], lf_positions[i][2],
-	    lf_velocities[i][0], lf_velocities[i][1], lf_velocities[i][2]
-	    );
+    printf("%i\n"
+	   "      f = <%16.10e %16.10e %16.10e>\n"
+	   "    pos = <%16.10e %16.10e %16.10e>\n"
+	   "    vel = <%16.10e %16.10e %16.10e>\n",
+	   i,
+	   lf_forces[i][0], lf_forces[i][1], lf_forces[i][2],
+	   lf_positions[i][0], lf_positions[i][1], lf_positions[i][2],
+	   lf_velocities[i][0], lf_velocities[i][1], lf_velocities[i][2]
+	   );
       }
-  fclose(file);
 }
