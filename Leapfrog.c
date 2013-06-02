@@ -39,10 +39,8 @@ double g = 6.67384e-11;
 
 int numParticles = kNumParticles;
 
-void lf_readParticles();
 void initializeParticles();
 void lf_initializeParticles();
-void lf_outputData();
 void updateForces();
 void updateVelocities();
 void updatePositions();
@@ -67,22 +65,7 @@ int main()
   }
 
   writeAllParticleData();
-  printf("\n");
-  lf_outputData();
   return 0;
-}
-
-void lf_readParticles()
-{
-    int i, j;
-    for(i=0; i<numParticles; i++)
-    {
-        fscanf(lf_inputFile, "%lf", &masses[i]);
-        for(j=0; j<kNumDims; j++)
-            fscanf(lf_inputFile, "%lf", &lf_positions[i][j]);
-        for(j=0; j<kNumDims; j++)
-            fscanf(lf_inputFile, "%lf", &lf_velocities[i][j]);
-    }
 }
 
 void lf_initializeParticles()
@@ -115,39 +98,6 @@ void lf_initializeParticles()
         }
     }
     printf("\n");
-}
-
-void lf_outputData()
-{
-    double totalEnergy = 0.0,
-      totalMass = 0.0;
-
-    double deltaPos[kNumDims],
-      velocity[kNumDims];
-
-    int i,j,k;
-
-    /* kinetic energy */
-    for(i=0; i<numParticles; i++) {
-      for(k = 0; k < kNumDims; k++)
-	velocity[k] = lf_velocities[i][k];
-      totalEnergy += 0.5 * masses[i] * lengthSquared(velocity);
-      totalMass += masses[i];
-    }
-    printf("          kinetic energy: %14.7g\n",
-           totalEnergy);
-
-    /* potential energy */
-    for(i=0; i<numParticles; i++) {
-      for(j=0; j<i; j++) {
-	for(k=0; k<kNumDims; k++)
-	  deltaPos[k] = lf_positions[i][k] - lf_positions[j][k];
-	totalEnergy -= masses[i]*masses[j] / sqrt(lengthSquared(deltaPos) + epsilonSquared);
-      }
-    }
-
-    printf("          total energy: %14.7g\n",
-           totalEnergy);
 }
 
 void updateForces() {

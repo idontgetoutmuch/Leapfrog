@@ -132,9 +132,9 @@ forces :: (Source a Double, Source b Double) =>
           Array D DIM3 Double
 forces qs ms = fs *^ is
   where ds = repDim2to3Outer $
-             Repa.map ((^3) . sqrt . (+ eps2)) $
-             foldS (+) 0 $
-             Repa.map (^2) $
+             Repa.map ((\x -> x * x * x) . sqrt . (+ eps2)) $
+             sumS $
+             Repa.map (\x -> x * x) $
              ps
         is = repDim2to3Outer $ prodPairsMasses ms
         fs = Repa.map (* (negate gConst)) $
@@ -169,8 +169,6 @@ stepPosition xs vs = xs +^ (vs *^ dt2)
     dt2 = extend (Any :. i :. j) $ fromListUnboxed Z [dt]
     (Z :. i :. j) = extent vs
 
-
-
 stepOnce :: Monad m =>
             Masses -> Positions -> Velocities ->
             m (Positions, Velocities)
@@ -183,13 +181,13 @@ stepOnce masses rs vs = do
 stepN :: forall m . Monad m =>
          Int -> Masses -> Positions -> Velocities ->
          m (Positions, Velocities)
-stepN 0 masses rs vs = return (rs, vs)
+stepN 0      _ rs vs = return (rs, vs)
 stepN n masses rs vs = do
    (rs', vs') <- stepOnce masses rs vs
    stepN (n - 1) masses rs' vs'
 
 nSteps :: Int
-nSteps = 10000000
+nSteps = 1000000
 
 main :: IO ()
 main = do

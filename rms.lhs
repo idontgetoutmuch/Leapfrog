@@ -524,33 +524,47 @@ necessary.
 This should give us about one orbit of Jupiter.
 
 > nSteps :: Int
-> nSteps = 3000*36
-
--- > main :: IO ()
--- > main = do
--- >   rsVs <- stepN nSteps masses initRs initVs
--- >   putStrLn $ show rsVs
+> nSteps = 10000000
 
 > main :: IO ()
 > main = do
->   rsVs <- stepN' nSteps masses initRs initVs
->   let rs = Prelude.map fst rsVs
->       vs = Prelude.map snd rsVs
->       erx = (rs!!nSteps)!(Z :. (0 :: Int) :. (0 :: Int))
->       ery = (rs!!nSteps)!(Z :. (0 :: Int) :. (1 :: Int))
->       erz = (rs!!nSteps)!(Z :. (0 :: Int) :. (2 :: Int))
->       srx = (rs!!nSteps)!(Z :. (2 :: Int) :. (0 :: Int))
->       sry = (rs!!nSteps)!(Z :. (2 :: Int) :. (1 :: Int))
->       srz = (rs!!nSteps)!(Z :. (2 :: Int) :. (2 :: Int))
+>   rsVs <- stepN nSteps masses initRs initVs
+>   putStrLn $ show rsVs
+>   let rs = fst rsVs
+>       vs = snd rsVs
+>       erx = rs!(Z :. (0 :: Int) :. (0 :: Int))
+>       ery = rs!(Z :. (0 :: Int) :. (1 :: Int))
+>       erz = rs!(Z :. (0 :: Int) :. (2 :: Int))
+>       srx = rs!(Z :. (2 :: Int) :. (0 :: Int))
+>       sry = rs!(Z :. (2 :: Int) :. (1 :: Int))
+>       srz = rs!(Z :. (2 :: Int) :. (2 :: Int))
 >   putStrLn $ printf "%16.10e %16.10e %16.10e" erx ery erz
 >   putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
->   kes <- mapM (kineticEnergy masses) vs
->   pes <- mapM (potentialEnergy masses) rs
->   let tes = zipWith (+) kes pes
->       maxTe = maximum tes
->       minTe = minimum tes
->   putStrLn $ "Relative error in total energy (J): " ++
->              show ((maxTe - minTe) / ((maxTe + minTe) /2))
+>   ke <- kineticEnergy masses vs
+>   pe <- potentialEnergy masses rs
+>   let te = ke + pe
+>   putStrLn $ show te
+
+-- > main :: IO ()
+-- > main = do
+-- >   rsVs <- stepN' nSteps masses initRs initVs
+-- >   let rs = Prelude.map fst rsVs
+-- >       vs = Prelude.map snd rsVs
+-- >       erx = (rs!!nSteps)!(Z :. (0 :: Int) :. (0 :: Int))
+-- >       ery = (rs!!nSteps)!(Z :. (0 :: Int) :. (1 :: Int))
+-- >       erz = (rs!!nSteps)!(Z :. (0 :: Int) :. (2 :: Int))
+-- >       srx = (rs!!nSteps)!(Z :. (2 :: Int) :. (0 :: Int))
+-- >       sry = (rs!!nSteps)!(Z :. (2 :: Int) :. (1 :: Int))
+-- >       srz = (rs!!nSteps)!(Z :. (2 :: Int) :. (2 :: Int))
+-- >   putStrLn $ printf "%16.10e %16.10e %16.10e" erx ery erz
+-- >   putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
+-- >   kes <- mapM (kineticEnergy masses) vs
+-- >   pes <- mapM (potentialEnergy masses) rs
+-- >   let tes = zipWith (+) kes pes
+-- >       maxTe = maximum tes
+-- >       minTe = minimum tes
+-- >   putStrLn $ "Relative error in total energy (J): " ++
+-- >              show ((maxTe - minTe) / ((maxTe + minTe) /2))
 
 -- >   let earthXs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (0 :: Int))) rs
 -- >       earthYs = Prelude.map (\r -> r!(Z :. (0 :: Int) :. (1 :: Int))) rs
