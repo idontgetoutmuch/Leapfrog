@@ -39,7 +39,9 @@ Re-arranging:
 $$
 \begin{aligned}
 \frac{\partial x}{\partial u}(1 + \frac{\partial f}{\partial x}) &= 1 \\
-\frac{\partial x}{\partial v}(1 + \frac{\partial f}{\partial x}) &= -\frac{\partial f}{\partial v}
+\frac{\partial x}{\partial v}(1 + \frac{\partial f}{\partial x}) &= -\frac{\partial f}{\partial v} \\
+\frac{\partial y}{\partial u} -\frac{\partial g}{\partial x}\frac{\partial x}{\partial u} &= 0 \\
+\frac{\partial y}{\partial v} - \frac{\partial g}{\partial x}\frac{\partial x}{\partial v} &= 1 + \frac{\partial g}{\partial v}
 \end{aligned}
 $$
 
@@ -47,13 +49,18 @@ Pulling everything together in matrix form:
 
 $$
 \begin{bmatrix}
+1 + \frac{\partial f}{\partial x} & 0 \\
+-\frac{\partial g}{\partial x} & 1
+\end{bmatrix}
+\,
+\begin{bmatrix}
 \frac{\partial x}{\partial u} & \frac{\partial x}{\partial v} \\
 \frac{\partial y}{\partial u} & \frac{\partial y}{\partial v}
 \end{bmatrix}
 =
 \begin{bmatrix}
-\frac{\partial x}{\partial u} & \frac{\partial x}{\partial v} \\
-\frac{\partial y}{\partial u} & \frac{\partial y}{\partial v}
+1 & -\frac{\partial f}{\partial v} \\
+0 & 1 + \frac{\partial g}{\partial v}
 \end{bmatrix}
 $$
 
@@ -114,15 +121,14 @@ p_{n+1} = p_n - hmgl\sin\theta_n \\
 \end{aligned}
 $$
 
+{-# OPTIONS_GHC -Wall                     #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
 
-> {-# OPTIONS_GHC -Wall                     #-}
-> {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
-> {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
->
 > {-# LANGUAGE TupleSections                #-}
 > {-# LANGUAGE NoMonomorphismRestriction    #-}
 
-> module Main (main) where
+> module Symplectic (dia', main) where
 
 > import Diagrams.Backend.Cairo.CmdLine
 > import Diagrams.Prelude
@@ -256,12 +262,17 @@ $$
 > nPlotPoints :: Int
 > nPlotPoints = 100
 
-> dia :: DiagramC
-> dia = test tickSize [ (cellColour0, take nPlotPoints $ bls)
+> dia' :: DiagramC
+> dia' = test tickSize [ (cellColour0, take nPlotPoints $ bls)
 >                     , (cellColour1, take nPlotPoints $ brs)
 >                     , (cellColour2, take nPlotPoints $ trs)
 >                     , (cellColour3, take nPlotPoints $ tls)
 >                     ]
 
 > main :: IO ()
-> main = defaultMain dia
+> main = defaultMain dia'
+
+```{.dia width='800'}
+import Symplectic
+dia = dia'
+```
