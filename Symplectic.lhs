@@ -7,6 +7,56 @@ q_{n+1} &= q_n + h\nabla_p H(p_{n+1}, q_n)
 \end{aligned}
 $$
 
+We check that this really is symplectic. First suppose we have two functions:
+
+$$
+\begin{aligned}
+x &= u - f(x,v) \\
+y &= v + g(x,v) \\
+\end{aligned}
+$$
+
+Then we can find partial derivatives:
+
+$$
+\begin{aligned}
+dx &= du - \frac{\partial f}{\partial x}dx - \frac{\partial f}{\partial v}dv \\
+dy &= dv + \frac{\partial g}{\partial x}dx + \frac{\partial g}{\partial v} dv \\
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
+\frac{\partial x}{\partial u} &= 1 - \frac{\partial f}{\partial x}\frac{\partial x}{\partial u} \\
+\frac{\partial x}{\partial v} &= -\frac{\partial f}{\partial x}\frac{\partial x}{\partial v} -\frac{\partial f}{\partial v} \\
+\frac{\partial y}{\partial u} &= \frac{\partial g}{\partial x}\frac{\partial x}{\partial u} \\
+\frac{\partial y}{\partial v} &= 1 + \frac{\partial g}{\partial x}\frac{\partial x}{\partial v} + \frac{\partial g}{\partial v}
+\end{aligned}
+$$
+
+Re-arranging:
+
+$$
+\begin{aligned}
+\frac{\partial x}{\partial u}(1 + \frac{\partial f}{\partial x}) &= 1 \\
+\frac{\partial x}{\partial v}(1 + \frac{\partial f}{\partial x}) &= -\frac{\partial f}{\partial v}
+\end{aligned}
+$$
+
+Pulling everything together in matrix form:
+
+$$
+\begin{bmatrix}
+\frac{\partial x}{\partial u} & \frac{\partial x}{\partial v} \\
+\frac{\partial y}{\partial u} & \frac{\partial y}{\partial v}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\frac{\partial x}{\partial u} & \frac{\partial x}{\partial v} \\
+\frac{\partial y}{\partial u} & \frac{\partial y}{\partial v}
+\end{bmatrix}
+$$
+
 Consider a mass of $m$ attached to a light rod of length $l$ which is
 attached to a point from which it can swing freely in a plane. Then
 the kinetic energy is:
