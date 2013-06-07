@@ -1,3 +1,89 @@
+
+Forget about Newton and suppose you are told that the way to do
+mechanics is to write down the total energy of the system in which you
+are interested and then apply Hamilton's equations.
+
+Consider a mass of $m$ attached to a light rod of length $l$ which is
+attached to a point from which it can swing freely in a plane. Then
+the kinetic energy is:
+
+$$
+\frac{1}{2}mv^2 = \frac{1}{2}ml^2\dot{\theta}^2
+$$
+
+and the potential energy (taking this to be 0 at $\theta = 0$) is:
+
+$$
+mgl(1 - \cos\theta)
+$$
+
+Thus the Hamiltonian is:
+
+$$
+\cal{H} = \frac{1}{2}ml^2\dot{\theta}^2 + mgl(1 - \cos\theta)
+$$
+
+Let us set the generalized momentum
+
+$$
+p = \frac{\partial\cal{L}}{\partial\dot{\theta}} = ml^2\dot{\theta}
+$$
+
+Then we can re-write the Hamiltonian as:
+
+$$
+\cal{H} = \frac{p^2}{2ml^2} + mgl(1 - \cos\theta)
+$$
+
+Applying Hamilton's equations we obtain
+
+$$
+\begin{aligned}
+\dot{\theta} &=  \frac{\partial\cal{H}}{\partial p}      = \frac{p}{ml^2} \\
+\dot{p}      &= -\frac{\partial\cal{H}}{\partial \theta} = -mgl\sin\theta
+\end{aligned}
+$$
+
+Differentiating the first equation with respect to time we then obtain
+the familiar equation describing the motion of a simple pendulum.
+
+$$
+\ddot{\theta} = \frac{\dot{p}}{ml^2} = \frac{-mgl\sin\theta}{ml^2} = -\frac{g}{l}\sin\theta
+$$
+
+Now we would like to calculate the pendulum's position and velocity at
+a given time. The obvious starting place is to use the explicit Euler
+method.
+
+$$
+\begin{aligned}
+\theta_{n+1} &=  h\frac{p_n}{ml^2} \\
+p_{n+1}      &= -hmgl\sin\theta_n
+\end{aligned}
+$$
+
+> module Symplectic (dia', main) where
+
+> import Diagrams.Backend.Cairo.CmdLine
+> import Diagrams.Prelude
+>
+> import Text.Printf
+
+> stepMomentumEE :: Double -> Double -> Double -> Double -> Double
+> stepMomentumEE m l p q = p -  h * m * g * l * sin q
+
+> stepPositionEE :: Double -> Double -> Double -> Double -> Double
+> stepPositionEE m l p q = q + h * p / (m * l^2)
+
+> stepOnceEE :: Double -> Double -> Double -> Double -> (Double, Double)
+> stepOnceEE m l p q = (newP, newQ)
+>   where
+>     newP = stepMomentumEE m l p q
+>     newQ = stepPositionEE m l p q
+
+> runEE :: Double -> Double -> [(Double, Double)]
+> runEE initP initTheta = iterate (uncurry (stepOnceEE m l)) (initP, initTheta)
+
 The symplectic Euler method:
 
 $$
@@ -64,53 +150,6 @@ $$
 \end{bmatrix}
 $$
 
-Consider a mass of $m$ attached to a light rod of length $l$ which is
-attached to a point from which it can swing freely in a plane. Then
-the kinetic energy is:
-
-$$
-\frac{1}{2}mv^2 = \frac{1}{2}ml^2\dot{\theta}^2
-$$
-
-and the potential energy (taking this to be 0 at $\theta = 0$) is:
-
-$$
-mgl(1 - \cos\theta)
-$$
-
-Thus the Hamiltonian is:
-
-$$
-\cal{H} = \frac{1}{2}ml^2\dot{\theta}^2 + mgl(1 - \cos\theta)
-$$
-
-Let us set the generalized momentum
-
-$$
-p = \frac{\partial\cal{H}}{\partial\dot{\theta}} = ml^2\dot{\theta}
-$$
-
-Then we can re-write the Hamiltonian as:
-
-$$
-\cal{H} = \frac{p^2}{2ml^2} + mgl(1 - \cos\theta)
-$$
-
-Applying Hamilton's equations we obtain
-
-$$
-\begin{aligned}
-\dot{\theta} &=  \frac{\partial\cal{H}}{\partial p}      = \frac{p}{ml^2} \\
-\dot{p}      &= -\frac{\partial\cal{H}}{\partial \theta} = -mgl\sin\theta
-\end{aligned}
-$$
-
-Differentiating the first equation with respect to time we then obtain
-the familiar equation describing the motion of a simple pendulum.
-
-$$
-\ddot{\theta} = \frac{\dot{p}}{ml^2} = \frac{-mgl\sin\theta}{ml^2} = -\frac{g}{l}\sin\theta
-$$
 
 Now let's implement the symplectic Euler method for it:
 
@@ -128,12 +167,6 @@ $$
 > {-# LANGUAGE TupleSections                #-}
 > {-# LANGUAGE NoMonomorphismRestriction    #-}
 
-> module Symplectic (dia', main) where
-
-> import Diagrams.Backend.Cairo.CmdLine
-> import Diagrams.Prelude
->
-> import Text.Printf
 
 > h, m, l, g :: Double
 > h = 0.01  -- Seconds
@@ -166,6 +199,7 @@ $$
 > tickSize :: Double
 > tickSize   = 0.1
 > cellColour0 = red  `withOpacity` 0.5
+> cellColourEE0 = magenta `withOpacity` 0.5
 > cellColour1 = blue `withOpacity` 0.5
 > cellColour2 = green  `withOpacity` 0.5
 > cellColour3 = yellow `withOpacity` 0.5
@@ -248,10 +282,11 @@ $$
 >                     circle cSize # fc red # lw 0
 >         myText = alignedText 1.0 0.5
 
-> bls = runSE initP         initTheta
-> brs = runSE (initP + 1.0) initTheta
-> trs = runSE (initP + 1.0) (initTheta + 1.0)
-> tls = runSE initP         (initTheta + 1.0)
+> bls   = runSE initP         initTheta
+> blsEE = runEE initP         initTheta
+> brs   = runSE (initP + 1.0) initTheta
+> trs   = runSE (initP + 1.0) (initTheta + 1.0)
+> tls   = runSE initP         (initTheta + 1.0)
 >
 > areaParGram (x1, y1) (x2, y2) = (x2 - x1) * (y2 - y1)
 > areas = zipWith areaParGram bls trs
@@ -260,14 +295,15 @@ $$
 > hamiltonian m l p q = (p^2 / (2 * m * l^2)) + (m * g * l * (1 - cos q))
 
 > nPlotPoints :: Int
-> nPlotPoints = 100
+> nPlotPoints = 400
 
 > dia' :: DiagramC
 > dia' = test tickSize [ (cellColour0, take nPlotPoints $ bls)
->                     , (cellColour1, take nPlotPoints $ brs)
->                     , (cellColour2, take nPlotPoints $ trs)
->                     , (cellColour3, take nPlotPoints $ tls)
->                     ]
+>                      , (cellColourEE0, take nPlotPoints $ blsEE)
+>                      , (cellColour1, take nPlotPoints $ brs)
+>                      , (cellColour2, take nPlotPoints $ trs)
+>                      , (cellColour3, take nPlotPoints $ tls)
+>                      ]
 
 > main :: IO ()
 > main = defaultMain dia'
