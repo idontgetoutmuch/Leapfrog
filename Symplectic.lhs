@@ -92,9 +92,15 @@ p_{n+1}      &= -hmgl\sin\theta_n
 \end{aligned}
 $$
 
+{-# OPTIONS_GHC -Wall                     #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+
+> {-# LANGUAGE TupleSections                #-}
+> {-# LANGUAGE NoMonomorphismRestriction    #-}
+
 > module Symplectic (
->     nPlotPoints
->   , blsEE
+>     blsEE
 >   , tls
 >   , bls
 >   , trs
@@ -113,6 +119,17 @@ $$
 >     newP = stepMomentumEE m l p q
 >     newQ = stepPositionEE m l p q
 
+> h, m, l, g :: Double
+> h = 0.01  -- Seconds
+> l = 1.0  -- Metres
+> m = 1.0  -- Kilograms
+> g = 9.81 -- Metres * Seconds^-2
+
+> initTheta, initThetaDot, initP :: Double
+> initTheta    = 0.0
+> initThetaDot = 1.7
+> initP        = m * l^2 * initThetaDot
+
 > runEE :: Double -> Double -> [(Double, Double)]
 > runEE initP initTheta = iterate (uncurry (stepOnceEE m l)) (initP, initTheta)
 
@@ -129,8 +146,62 @@ dia = diaEE
 As we can see from the diagram above, energy is not conserved but
 increases steadily over time, an undesirable state of affairs.
 
+Instead let us apply the the symplectic Euler method:
 
-The symplectic Euler method:
+$$
+\begin{aligned}
+p_{n+1} = p_n - hmgl\sin\theta_n \\
+\theta_{n+1} = \theta_n + \frac{hp_{n+1}}{2ml^2}
+\end{aligned}
+$$
+
+> stepMomentum :: Double -> Double -> Double -> Double -> Double
+> stepMomentum m l p q = p -  h * m * g * l * sin q
+
+> stepPosition :: Double -> Double -> Double -> Double -> Double
+> stepPosition m l p q = q + h * p / (m * l^2)
+
+> stepOnce :: Double -> Double -> Double -> Double -> (Double, Double)
+> stepOnce m l p q = (newP, newQ)
+>   where
+>     newP = stepMomentum m l p q
+>     newQ = stepPosition m l newP q
+
+
+```{.dia width='800'}
+import Symplectic
+import SymplecticDia
+
+dia' :: DiagramC
+dia' = test tickSize [ (cellColour0, take nPlotPoints $ bls)
+                     ]
+
+dia = dia'
+```
+
+In this case the energy is conserved so this looks like a good
+candidate for simulating orbital dynamics. But why does this work? It really looks very similar to the explicit Euler method.
+
+Theory
+------
+
+```{.dia width='800'}
+illustrateBezier c0 c1 c2 c3 x2 x3
+    = endpt  # translate x3
+    <> l3a
+    <> fromSegments [bezier3 c3 c0 x3, bezier3 c1 c2 x2]
+  where
+    dashed  = dashing [0.1,0.1] 0
+    endpt   = circle 0.05 # fc red  # lw 0
+    l3a     = fromOffsets [r2 (1, 2)] # translate (r2 (1, 1)) # dashed
+
+x2      = r2 (3,-1) :: R2         -- endpoint
+x3      = r2 (1, 1) :: R2         -- endpoint
+[c0,c1,c2,c3,c4] = map r2 [(-1, -3), (1,2), (2,0), (-3,0), (-1, -2)]   -- control points
+
+example = illustrateBezier c0 c1 c2 (-c2) x2 x3
+dia = example
+```
 
 $$
 \begin{aligned}
@@ -197,45 +268,6 @@ $$
 $$
 
 
-Now let's implement the symplectic Euler method for it:
-
-$$
-\begin{aligned}
-p_{n+1} = p_n - hmgl\sin\theta_n \\
-\theta_{n+1} = \theta_n + \frac{hp_{n+1}}{2ml^2}
-\end{aligned}
-$$
-
-{-# OPTIONS_GHC -Wall                     #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
-{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
-
-> {-# LANGUAGE TupleSections                #-}
-> {-# LANGUAGE NoMonomorphismRestriction    #-}
-
-
-> h, m, l, g :: Double
-> h = 0.01  -- Seconds
-> l = 1.0  -- Metres
-> m = 1.0  -- Kilograms
-> g = 9.81 -- Metres * Seconds^-2
-
-> stepMomentum :: Double -> Double -> Double -> Double -> Double
-> stepMomentum m l p q = p -  h * m * g * l * sin q
-
-> stepPosition :: Double -> Double -> Double -> Double -> Double
-> stepPosition m l p q = q + h * p / (m * l^2)
-
-> stepOnce :: Double -> Double -> Double -> Double -> (Double, Double)
-> stepOnce m l p q = (newP, newQ)
->   where
->     newP = stepMomentum m l p q
->     newQ = stepPosition m l newP q
-
-> initTheta, initThetaDot, initP :: Double
-> initTheta    = 0.0
-> initThetaDot = 1.7
-> initP        = m * l^2 * initThetaDot
 
 > runSE :: Double -> Double -> [(Double, Double)]
 > runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
@@ -252,9 +284,6 @@ $$
 > hamiltonian :: Double -> Double -> Double -> Double -> Double
 > hamiltonian m l p q = (p^2 / (2 * m * l^2)) + (m * g * l * (1 - cos q))
 
-> nPlotPoints :: Int
-> nPlotPoints = 400
-
 
 ```{.dia width='800'}
 import Symplectic
@@ -270,3 +299,10 @@ dia' = test tickSize [ (cellColour0, take nPlotPoints $ bls)
 
 dia = dia'
 ```
+
+Performance
+-----------
+
+Bibliography
+------------
+

@@ -2,6 +2,7 @@ module SymplecticDia (
     DiagramC
   , test
   , tickSize
+  , nPlotPoints
   , cellColourEE0
   , cellColour0
   , cellColour1
@@ -16,6 +17,9 @@ import Text.Printf
 
 
 type DiagramC = Diagram Cairo R2
+
+nPlotPoints :: Int
+nPlotPoints = 400
 
 background :: DiagramC
 background = rect 1.1 1.1 # translate (r2 (0.5, 0.5))
