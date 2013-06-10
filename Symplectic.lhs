@@ -203,6 +203,93 @@ example = illustrateBezier c0 c1 c2 (-c2) x2 x3
 dia = example
 ```
 
+The Canonical Symplectic Form for the Cotangent Bundle
+======================================================
+
+The cotangent bundle has a canonical symplectic 2-form and hence is a symplectic manifold.
+
+Let $\pi : T^* M \longrightarrow M$ be the projection function from
+the cotangent bundle to the base manifold, that is, $\pi(x,\xi) =
+x$. Then $\pi_* : T(T^*M) \longrightarrow TM$ and we can define a 1-form (the
+canonical or tautological 1-form) on $v \in T_{(x,\xi)}(T^* M)$ as
+
+$$
+\theta_{(x,\xi)} (v) = \xi(\pi_* v)
+$$
+
+By definition:
+
+$$
+\pi_* \bigg(\frac{\partial}{\partial x_i}\bigg)(f) = \frac{\partial}{\partial x_i}(f \circ \pi) = \frac{\partial f}{\partial x_i}
+$$
+
+and
+
+$$
+\pi_* \bigg(\frac{\partial}{\partial \xi_i}\bigg)(f) = \frac{\partial}{\partial \xi_i}(f \circ \pi) = 0
+$$
+
+If we then write $v \in T_{(x,\xi)}(T^*M)$ in co-ordinate form:
+
+$$
+v = a^i\frac{\partial}{\partial x_i} + \alpha^i\frac{\partial}{\partial \xi_i}
+$$
+
+we have
+
+$$
+\pi_*v = a^i\pi_*\frac{\partial}{\partial x_i} + \alpha^i\pi_*\frac{\partial}{\partial \xi_i} = a^i\frac{\partial}{\partial x_i}
+$$
+
+Taking $\xi = \xi_i dx^i$ we have that
+
+$$
+\xi(\pi_*v) = \xi_i a^i
+$$
+
+Thus we have:
+
+$$
+\theta_{(x,\xi)} = \xi_i dx^i
+$$
+
+We then have a closed 2-form
+
+$$
+\omega = d\theta
+$$
+
+In co-ordinate terms:
+
+$$
+\omega = d\theta = d (\xi_i dx^i) = d\xi^i \wedge dx^i
+$$
+
+Hamiltonian Vector Fields
+=========================
+
+Without proof let us record the following fact. Let $(M, \omega)$ be a
+symplectic manifold. Then there exists a bundle isomorphism
+$\tilde{\omega} : TM \longrightarrow T^*M$ defined by
+$\tilde{\omega}(X_p)(Y_p) = \omega_p(X_p, Y_p)$.
+
+This is analagous to the isomorphism one can derive in a (semi)
+Riemannian manifold with the metric in some sense playing the role of
+the 2-form (see [@o1983semi] for example).
+
+Now suppose we have a smooth function $H : M \longrightarrow
+\mathbb{R}$ then we can form the 1-form $dH$ and we can define the
+Hamiltonian vector field $X_H = \tilde{\omega}^{-1}(dH)$.
+
+In co-ordinates we have:
+
+$$
+\omega\bigg(\frac{\partial}{\partial x_i}, \frac{\partial}{\partial x_j}\bigg) = d\xi^i \wedge dx^i\bigg(\frac{\partial}{\partial x_i}, \frac{\partial}{\partial x_j}\bigg) = d\xi^i\bigg(\frac{\partial}{\partial x_i}\bigg)dx^i\bigg(\frac{\partial}{\partial x_j}\bigg) - d\xi^i\bigg(\frac{\partial}{\partial x_j}\bigg)dx^i\bigg(\frac{\partial}{\partial x_i}\bigg) = 0
+$$
+
+Euler Symplectic
+================
+
 $$
 \begin{aligned}
 p_{n+1} &= p_n - h\nabla_q H(p_{n+1}, q_n) \\
