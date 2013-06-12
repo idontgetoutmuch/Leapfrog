@@ -92,12 +92,11 @@ p_{n+1}      &= -hmgl\sin\theta_n
 \end{aligned}
 $$
 
-{-# OPTIONS_GHC -Wall                     #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
-{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+> {-# OPTIONS_GHC -Wall                     #-}
+> {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+> {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
 
-> {-# LANGUAGE TupleSections                #-}
-> {-# LANGUAGE NoMonomorphismRestriction    #-}
+> {-# LANGUAGE FlexibleContexts             #-}
 
 > module Symplectic (
 >     blsEE
@@ -394,17 +393,70 @@ dia = dia'
 Planetary Motion
 ----------------
 
+Normally we would express the gravitational constant in SI units but
+to be consistent with [@hairer2010geometric] we use units in which
+distances are expressed in astronomical units, masses are measured
+relative to the sun and time is measured in earth days.
+
+> gConst :: Double
+> gConst = 1.0 -- 2.95912208286e-4
+
+> spaceDim :: Int
+> spaceDim = 3
+
 > type Momenta   = Array U DIM2 Double
 > type Positions = Array U DIM2 Double
 > type Masses    = Array U DIM1 Double
 
 > hamiltonianP :: Masses -> Momenta -> Positions -> IO (Array U DIM0 Double)
 > hamiltonianP ms ps qs = do preKes <- sumP $ ps *^ ps
->                            sumP $ preKes /^ ms
+>                            ke     <- sumP $ preKes /^ ms
+>
+>                            ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
+>                            let ds   = Repa.map sqrt ds2
+>                                is   = prodPairsMasses ms
+>                                pess = Repa.map (* (negate gConst)) $ is /^ ds
+>                            pes <- sumP pess
+>                            pe  <- sumP pes
+>
+>                            computeP $ ke +^ pe
+
+> repDim1To2Outer :: Source a Double =>
+>                    Array a DIM1 Double ->
+>                    Array D DIM2 Double
+> repDim1To2Outer a = extend (Any :. i :. All) a
+>   where (Z :. i) = extent a
+
+> prodPairsMasses :: Source a Double =>
+>                    Array a DIM1 Double ->
+>                    Array D DIM2 Double
+> prodPairsMasses ms = ns *^ (transpose ns)
+>   where
+>     ns = repDim1To2Outer ms
+
+> transposeOuter :: Source a Double =>
+>               Array a DIM3 Double ->
+>               Array D DIM3 Double
+> transposeOuter qs = backpermute (f e) f qs
+>   where
+>     e = extent qs
+>     f (Z :. i :. i' :. j) = Z :. i' :. i :. j
+>
+> pointDiffs :: Source a Double =>
+>               Array a DIM2 Double ->
+>               Array D DIM3 Double
+> pointDiffs qs = qss -^ (transposeOuter qss)
+>   where qss = replicateRows qs
+>
+> replicateRows :: Source a Double =>
+>                  Array a DIM2 Double ->
+>                  Array D DIM3 Double
+> replicateRows a = extend (Any :. i :. All) a
+>   where (Z :. i :. _j) = extent a
+
 
 Performance
 -----------
 
 Bibliography
 ------------
-
