@@ -107,6 +107,10 @@ $$
 >   , brs
 >   ) where
 
+> import Data.Array.Repa hiding ((++), zipWith)
+> import qualified Data.Array.Repa as Repa
+> import Data.Array.Repa.Algorithms.Matrix
+
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
 
@@ -386,6 +390,17 @@ dia' = test tickSize [ (cellColour0, take nPlotPoints $ bls)
 
 dia = dia'
 ```
+
+Planetary Motion
+----------------
+
+> type Momenta   = Array U DIM2 Double
+> type Positions = Array U DIM2 Double
+> type Masses    = Array U DIM1 Double
+
+> hamiltonianP :: Masses -> Momenta -> Positions -> IO (Array U DIM0 Double)
+> hamiltonianP ms ps qs = do preKes <- sumP $ ps *^ ps
+>                            sumP $ preKes /^ ms
 
 Performance
 -----------
