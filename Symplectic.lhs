@@ -110,8 +110,6 @@ $$
 > import Data.Array.Repa hiding ((++), zipWith)
 > import qualified Data.Array.Repa as Repa
 > import Data.Array.Repa.Algorithms.Matrix
->
-> import Control.Monad
 
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
@@ -415,20 +413,6 @@ relative to the sun and time is measured in earth days.
 >   where
 >     f _ (Z :. i :. j) | i == j    = 0.0
 >                       | otherwise = x!(Z :. i :. j)
->
-> traceP :: Monad m => Array U DIM2 Double -> m Double
-> traceP x = liftM (head . toList) $ sumP $ slice y (Z :. (0 :: Int) :. All)
->   where
->     y =  backpermute (extent x) f x
->     f (Z :. i :. j) = Z :. (i - j) `mod` nRows:. j
->     Z :. nRows :. _nCols = extent x
->
-> traceS :: Array U DIM2 Double -> Double
-> traceS x = head $ toList $ sumS $ slice y (Z :. (0 :: Int) :. All)
->   where
->     y =  backpermute (extent x) f x
->     f (Z :. i :. j) = Z :. (i - j) `mod` nRows:. j
->     Z :. nRows :. _nCols = extent x
 
 > hamiltonianP :: Masses -> Momenta -> Positions -> IO Double
 > hamiltonianP ms ps qs = do preKes <- sumP $ ps *^ ps
