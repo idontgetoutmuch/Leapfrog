@@ -92,11 +92,12 @@ p_{n+1}      &= -hmgl\sin\theta_n
 \end{aligned}
 $$
 
-> {-# OPTIONS_GHC -Wall                     #-}
-> {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
-> {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+{-# OPTIONS_GHC -Wall                     #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
 
 > {-# LANGUAGE FlexibleContexts             #-}
+> {-# LANGUAGE ScopedTypeVariables          #-}
 
 > module Symplectic (
 >     blsEE
@@ -109,6 +110,8 @@ $$
 > import Data.Array.Repa hiding ((++), zipWith)
 > import qualified Data.Array.Repa as Repa
 > import Data.Array.Repa.Algorithms.Matrix
+>
+> import Control.Monad
 
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
@@ -407,19 +410,38 @@ relative to the sun and time is measured in earth days.
 > type Momenta   = Array U DIM2 Double
 > type Positions = Array U DIM2 Double
 > type Masses    = Array U DIM1 Double
+>
+> zeroDiags x = traverse x id f
+>   where
+>     f _ (Z :. i :. j) | i == j    = 0.0
+>                       | otherwise = x!(Z :. i :. j)
+>
+> traceP :: Monad m => Array U DIM2 Double -> m Double
+> traceP x = liftM (head . toList) $ sumP $ slice y (Z :. (0 :: Int) :. All)
+>   where
+>     y =  backpermute (extent x) f x
+>     f (Z :. i :. j) = Z :. (i - j) `mod` nRows:. j
+>     Z :. nRows :. _nCols = extent x
+>
+> traceS :: Array U DIM2 Double -> Double
+> traceS x = head $ toList $ sumS $ slice y (Z :. (0 :: Int) :. All)
+>   where
+>     y =  backpermute (extent x) f x
+>     f (Z :. i :. j) = Z :. (i - j) `mod` nRows:. j
+>     Z :. nRows :. _nCols = extent x
 
-> hamiltonianP :: Masses -> Momenta -> Positions -> IO (Array U DIM0 Double)
+> hamiltonianP :: Masses -> Momenta -> Positions -> IO Double
 > hamiltonianP ms ps qs = do preKes <- sumP $ ps *^ ps
 >                            ke     <- sumP $ preKes /^ ms
 >
 >                            ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
 >                            let ds   = Repa.map sqrt ds2
 >                                is   = prodPairsMasses ms
->                                pess = Repa.map (* (negate gConst)) $ is /^ ds
+>                                pess = zeroDiags $ Repa.map (* (negate gConst)) $ is /^ ds
 >                            pes <- sumP pess
 >                            pe  <- sumP pes
->
->                            computeP $ ke +^ pe
+>                            te :: Array U DIM0 Double <- computeP $ ke +^ pe
+>                            return $ head $ toList $ Repa.map (* 0.5) te
 
 > repDim1To2Outer :: Source a Double =>
 >                    Array a DIM1 Double ->
