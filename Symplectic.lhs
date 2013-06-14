@@ -399,6 +399,27 @@ to be consistent with [@hairer2010geometric] we use units in which
 distances are expressed in astronomical units, masses are measured
 relative to the sun and time is measured in earth days.
 
+$$
+{\cal H} = \frac{1}{2}\sum_{i=0}^n \frac{p_i^\top p_i}{m_i} - \frac{G}{2}\sum_{i=0}^n\sum_{j \neq i} \frac{m_i m_j}{\|q_i - q_j\|}
+$$
+
+Applying Hamilton's equations we obtain
+
+$$
+\begin{aligned}
+\dot{q_k^a} &=  \frac{\partial\cal{H}}{\partial p_k^a} = \frac{p_k^a}{m_k} \\
+\dot{p_k^a} &= -\frac{\partial\cal{H}}{\partial q_k^a} = G\sum_{j \neq k}m_k m_i \frac{q_k^a - q_j^a}{\|q_k - q_j\|^3}
+\end{aligned}
+$$
+
+In this case it easy to see that these are the same as Newton's laws of motion.
+
+Applying the Euler symplectic method we obtain:
+
+$$
+q_k^{(n+1)} = h q_k^n + \frac{p_k}{m_k}
+$$
+
 > gConst :: Double
 > gConst = 1.0 -- 2.95912208286e-4
 
