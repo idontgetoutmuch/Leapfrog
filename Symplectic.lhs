@@ -417,8 +417,53 @@ In this case it easy to see that these are the same as Newton's laws of motion.
 Applying the Euler symplectic method we obtain:
 
 $$
-q_k^{(n+1)} = h q_k^n + \frac{p_k}{m_k}
+\begin{aligned}
+q_k^{n+1} &= q_k^n + h \frac{p_k^n}{m_k} \\
+p_k^{n+1} &= p_k^n + h G\sum_{j \neq k}m_k m_i \frac{q_k^{n+1} - q_j^{n+1}}{\|q_k^{n+1} - q_j^{n+1}\|^3}
+\end{aligned}
 $$
+
+> stepPositionP :: ( Source a Double
+>                  , Source b Double
+>                  , Source c Double
+>                  ) =>
+>                  Double ->
+>                  Array a DIM2 Double ->
+>                  Array b DIM1 Double ->
+>                  Array c DIM2 Double ->
+>                  Array D DIM2 Double
+> stepPositionP h qs ms ps = qs +^ (ps *^ h2 /^ ms2)
+>   where
+>     (Z :. i :. j) = extent ps
+>
+>     h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
+>     ms2 = extend (Any :. j) ms
+>
+> stepMomentumP :: ( Source a Double
+>                  , Source b Double
+>                  ) =>
+>                  Double ->
+>                  Array a DIM2 Double ->
+>                  Array b DIM1 Double ->
+>                  Array c DIM2 Double ->
+>                  Array D DIM2 Double
+> stepMomentumP h qs ms ps = undefined
+>   where
+>     is = repDim2to3Outer $ prodPairsMasses ms
+>     qDiffs = pointDiffs qs
+>     ds     = repDim2to3Outer $
+>              Repa.map (^3) $
+>              sumS $
+>              Repa.map (^2) $
+>              qDiffs
+>     preFs = Repa.map (* (negate gConst)) $
+>             qDiffs /^ ds
+>     fs = is *^ preFs
+
+
+>     -- FIXME
+>     repDim2to3Outer a = extend (Any :. spaceDim) a
+
 
 > gConst :: Double
 > gConst = 1.0 -- 2.95912208286e-4
@@ -480,7 +525,6 @@ $$
 >                  Array D DIM3 Double
 > replicateRows a = extend (Any :. i :. All) a
 >   where (Z :. i :. _j) = extent a
-
 
 Performance
 -----------
