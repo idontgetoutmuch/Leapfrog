@@ -423,7 +423,8 @@ p_k^{n+1} &= p_k^n + h G\sum_{j \neq k}m_k m_i \frac{q_k^{n+1} - q_j^{n+1}}{\|q_
 \end{aligned}
 $$
 
-> stepPositionP :: ( Source a Double
+> stepPositionP :: ( Monad m
+>                  , Source a Double
 >                  , Source b Double
 >                  , Source c Double
 >                  ) =>
@@ -431,24 +432,29 @@ $$
 >                  Array a DIM2 Double ->
 >                  Array b DIM1 Double ->
 >                  Array c DIM2 Double ->
->                  Array D DIM2 Double
-> stepPositionP h qs ms ps = qs +^ (ps *^ h2 /^ ms2)
+>                  m (Array U DIM2 Double)
+> stepPositionP h qs ms ps = computeP $ qs +^ (ps *^ h2 /^ ms2)
 >   where
 >     (Z :. i :. j) = extent ps
 >
 >     h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >     ms2 = extend (Any :. j) ms
 >
-> stepMomentumP :: ( Source a Double
+> stepMomentumP :: ( Monad m
+>                  , Source a Double
 >                  , Source b Double
+>                  , Source c Double
 >                  ) =>
 >                  Double ->
 >                  Array a DIM2 Double ->
 >                  Array b DIM1 Double ->
 >                  Array c DIM2 Double ->
->                  Array D DIM2 Double
-> stepMomentumP h qs ms ps = undefined
+>                  m (Array U DIM2 Double)
+> stepMomentumP h qs ms ps =
+>   do fs <- sumP $ transpose fss
+>      computeP $ ps +^ (fs *^ dt2 /^ ms2)
 >   where
+>     ms2 = extend (Any :. j) ms
 >     is = repDim2to3Outer $ prodPairsMasses ms
 >     qDiffs = pointDiffs qs
 >     ds     = repDim2to3Outer $
@@ -458,11 +464,28 @@ $$
 >              qDiffs
 >     preFs = Repa.map (* (negate gConst)) $
 >             qDiffs /^ ds
->     fs = is *^ preFs
+>     fss = is *^ preFs
+>     Z :.i :. j :. _ = extent fss
+>     dt2             = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 
+> stepOnceP :: ( Monad m
+>              , Source a Double
+>              , Source b Double
+>              , Source c Double
+>              ) =>
+>              Double ->
+>              Array a DIM2 Double ->
+>              Array b DIM1 Double ->
+>              Array c DIM2 Double ->
+>              m (Array U DIM2 Double, Array U DIM2 Double)
+> stepOnceP h qs ms ps = do
+>   newQs <- stepMomentumP h qs ms ps
+>   newPs <- stepPositionP h newQs ms ps
+>   return (newQs, newPs)
 
->     -- FIXME
->     repDim2to3Outer a = extend (Any :. spaceDim) a
+> -- FIXME
+> repDim2to3Outer a = extend (Any :. spaceDim) a
+
 
 
 > gConst :: Double
