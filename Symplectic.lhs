@@ -96,6 +96,7 @@ $$
 {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
 
+> {-# LANGUAGE NoMonomorphismRestriction    #-}
 > {-# LANGUAGE FlexibleContexts             #-}
 > {-# LANGUAGE ScopedTypeVariables          #-}
 
@@ -105,12 +106,14 @@ $$
 >   , bls
 >   , trs
 >   , brs
+>   , simPlanets
 >   ) where
 
 > import Data.Array.Repa hiding ((++), zipWith)
 > import qualified Data.Array.Repa as Repa
 > import Data.Array.Repa.Algorithms.Matrix
 > import Control.Monad
+> import Control.Monad.Identity
 > import Text.Printf
 
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
@@ -435,13 +438,13 @@ $$
 >                  Array b DIM1 Double ->
 >                  Array c DIM2 Double ->
 >                  m (Array U DIM2 Double)
-> stepPositionP h qs ms ps = computeP $ qs +^ (ps *^ h2 /^ ms2)
->   where
->     (Z :. i :. j) = extent ps
+> stepPositionP h qs ms ps = do
+>   computeP $ qs +^ (ps *^ h2 /^ ms2)
+>     where
+>       (Z :. i :. j) = extent ps
 >
->     h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
->     ms2 = extend (Any :. j) ms
->
+>       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
+>       ms2 = extend (Any :. j) ms
 
 -- > stepMomentumP :: ( Monad m
 -- >                  , Source a Double
@@ -485,8 +488,8 @@ $$
 >              Array c DIM2 Double ->
 >              m (Array U DIM2 Double, Array U DIM2 Double)
 > stepOnceP h ms qs ps = do
->   newQs <- stepMomentumP h qs ms ps
->   newPs <- stepPositionP h newQs ms ps
+>   newPs <- stepMomentumP h qs ms ps
+>   newQs <- stepPositionP h qs ms newPs
 >   return (newQs, newPs)
 
 > -- FIXME
@@ -728,6 +731,12 @@ For completeness we give the Sun's starting conditions.
 >     (jupiterX, jupiterY, jupiterZ) = jupiterV
 >     (sunX,     sunY,     sunZ)     = sunV
 
+> initPsM :: Monad m => m (Array U DIM2 Double)
+> initPsM = computeP $ ms2 *^ initVs
+>   where
+>     (Z :. i :. j) = extent initVs
+>     ms2 = extend (Any :. j) masses
+
 > initRs :: Array U DIM2 Distance
 > initRs = fromListUnboxed (Z :. nBodies :. spaceDim) $ concat xs
 >   where
@@ -758,25 +767,69 @@ For completeness we give the Sun's starting conditions.
 >     updaters :: [(Positions, Momenta) -> m (Positions, Momenta)]
 >     updaters = replicate n (uncurry (stepOnceP dt masses))
 
+FIXME: Surely this can be as an instance of some nice recursion pattern.
+
+> stepN' :: Monad m =>
+>           Int -> Masses -> Positions -> Momenta ->
+>           m [(Positions, Momenta)]
+> stepN' n ms rs vs = do
+>   rsVs <- stepAux n rs vs
+>   return $ (rs, vs) : rsVs
+>   where
+>     stepAux 0  _  _ = return []
+>     stepAux n rs vs = do
+>       (newRs, newVs) <- stepOnceP dt ms rs vs
+>       rsVs <- stepAux (n-1) newRs newVs
+>       return $ (newRs, newVs) : rsVs
+
 Performance
 -----------
 
+> nSteps = 360
+
 > main :: IO ()
 > main = do
->   rsVs <- stepN 1 masses initRs initVs
->   putStrLn $ show rsVs
+>   initPs <- initPsM
+>   rsVs <- stepN' nSteps masses initRs initPs
+>   -- putStrLn $ show rsVs
+>   let rs = Prelude.map fst rsVs
+>       vs = Prelude.map snd rsVs
+>       erx = (rs!!nSteps)!(Z :. (0 :: Int) :. (0 :: Int))
+>       ery = (rs!!nSteps)!(Z :. (0 :: Int) :. (1 :: Int))
+>       erz = (rs!!nSteps)!(Z :. (0 :: Int) :. (2 :: Int))
+>       jrx = (rs!!nSteps)!(Z :. (1 :: Int) :. (0 :: Int))
+>       jry = (rs!!nSteps)!(Z :. (1 :: Int) :. (1 :: Int))
+>       jrz = (rs!!nSteps)!(Z :. (1 :: Int) :. (2 :: Int))
+>       srx = (rs!!nSteps)!(Z :. (2 :: Int) :. (0 :: Int))
+>       sry = (rs!!nSteps)!(Z :. (2 :: Int) :. (1 :: Int))
+>       srz = (rs!!nSteps)!(Z :. (2 :: Int) :. (2 :: Int))
+>   putStrLn $ printf "%16.10e %16.10e %16.10e" erx ery erz
+>   putStrLn $ printf "%16.10e %16.10e %16.10e" jrx jry jrz
+>   putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
+>   h <- zipWithM (hamiltonianP masses) rs vs
+>   putStrLn $ show $ take 10 $ drop (nSteps - 10) h
 
+> simPlanets = runIdentity $ do
+>   initPs <- initPsM
+>   rsVs <- stepN' nSteps masses initRs initPs
+>   let ps = Prelude.map fst rsVs
+>       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
+>       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
+>       jxs = Prelude.map (!(Z :. (1 :: Int) :. (0 :: Int))) ps
+>       jys = Prelude.map (!(Z :. (1 :: Int) :. (1 :: Int))) ps
+>   return $ zip (zip exs eys) (zip jxs jys)
 
--- >   let rs = fst rsVs
--- >       vs = snd rsVs
--- >       erx = rs!(Z :. (0 :: Int) :. (0 :: Int))
--- >       ery = rs!(Z :. (0 :: Int) :. (1 :: Int))
--- >       erz = rs!(Z :. (0 :: Int) :. (2 :: Int))
--- >       srx = rs!(Z :. (2 :: Int) :. (0 :: Int))
--- >       sry = rs!(Z :. (2 :: Int) :. (1 :: Int))
--- >       srz = rs!(Z :. (2 :: Int) :. (2 :: Int))
--- >   putStrLn $ printf "%16.10e %16.10e %16.10e" erx ery erz
--- >   putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
+```{.dia width='800'}
+import Symplectic
+import SymplecticDia
+
+dia' :: DiagramC
+
+dia' = test tickSize [ (cellColour1, map fst simPlanets)
+                     , (cellColour3, map snd simPlanets)]
+
+dia = dia'
+```
 
 Bibliography
 ------------
