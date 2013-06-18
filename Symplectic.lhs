@@ -110,6 +110,8 @@ $$
 > import Data.Array.Repa hiding ((++), zipWith)
 > import qualified Data.Array.Repa as Repa
 > import Data.Array.Repa.Algorithms.Matrix
+> import Control.Monad
+> import Text.Printf
 
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
@@ -440,18 +442,21 @@ $$
 >     h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >     ms2 = extend (Any :. j) ms
 >
-> stepMomentumP :: ( Monad m
->                  , Source a Double
->                  , Source b Double
->                  , Source c Double
->                  ) =>
->                  Double ->
->                  Array a DIM2 Double ->
->                  Array b DIM1 Double ->
->                  Array c DIM2 Double ->
->                  m (Array U DIM2 Double)
+
+-- > stepMomentumP :: ( Monad m
+-- >                  , Source a Double
+-- >                  , Source b Double
+-- >                  , Source c Double
+-- >                  ) =>
+-- >                  Double ->
+-- >                  Array a DIM2 Double ->
+-- >                  Array b DIM1 Double ->
+-- >                  Array c DIM2 Double ->
+-- >                  m (Array U DIM2 Double)
+
+
 > stepMomentumP h qs ms ps =
->   do fs <- sumP $ transpose fss
+>   do fs <- sumP $ transpose $ zeroDiags' fss
 >      computeP $ ps +^ (fs *^ dt2 /^ ms2)
 >   where
 >     ms2 = extend (Any :. j) ms
@@ -459,6 +464,7 @@ $$
 >     qDiffs = pointDiffs qs
 >     ds     = repDim2to3Outer $
 >              Repa.map (^3) $
+>              Repa.map sqrt $
 >              sumS $
 >              Repa.map (^2) $
 >              qDiffs
@@ -474,11 +480,11 @@ $$
 >              , Source c Double
 >              ) =>
 >              Double ->
->              Array a DIM2 Double ->
 >              Array b DIM1 Double ->
+>              Array a DIM2 Double ->
 >              Array c DIM2 Double ->
 >              m (Array U DIM2 Double, Array U DIM2 Double)
-> stepOnceP h qs ms ps = do
+> stepOnceP h ms qs ps = do
 >   newQs <- stepMomentumP h qs ms ps
 >   newPs <- stepPositionP h newQs ms ps
 >   return (newQs, newPs)
@@ -489,7 +495,10 @@ $$
 
 
 > gConst :: Double
-> gConst = 1.0 -- 2.95912208286e-4
+> -- gConst = 1.0 -- 2.95912208286e-4
+> gConst = 6.67384e-11        -- gravitational constant
+
+
 
 > spaceDim :: Int
 > spaceDim = 3
@@ -502,6 +511,11 @@ $$
 >   where
 >     f _ (Z :. i :. j) | i == j    = 0.0
 >                       | otherwise = x!(Z :. i :. j)
+>                                     
+> zeroDiags' x = traverse x id f
+>   where
+>     f _ (Z :. i :. j :. k) | i == j    = 0.0
+>                            | otherwise = x!(Z :. i :. j :. k)
 
 > hamiltonianP :: Masses -> Momenta -> Positions -> IO Double
 > hamiltonianP ms ps qs = do preKes <- sumP $ ps *^ ps
@@ -548,9 +562,221 @@ $$
 >                  Array D DIM3 Double
 > replicateRows a = extend (Any :. i :. All) a
 >   where (Z :. i :. _j) = extent a
+>
+
+> k :: Double
+> k = 24*60*60                -- seconds in a day
+
+> days, t, timestepDays, dt :: Double
+> days = 36500*100            -- total time in days
+> t = days*k                  -- total time
+> timestepDays = 10           -- timestep in days
+> dt = timestepDays*k         -- timestep
+
+> type Distance = Double
+> type Mass     = Double
+> type Force    = Double
+> type Speed    = Double
+> type Energy   = Double
+
+Now we need some initial conditions to start our simulation.
+
+  [jupiter]: http://en.wikipedia.org/wiki/Jupiter
+
+> sunMass, jupiterMass, earthMass :: Mass
+> sunMass     = 1.9889e30
+> jupiterMass = 1.8986e27
+> earthMass   = 5.9722e24
+
+> jupiterAphelion   :: Distance
+> jupiterAphelion   = 8.165208e11
+> jupiterPerihelion :: Distance
+> jupiterPerihelion = 7.405736e11
+> jupiterEccentrity :: Double     -- Eccentricity is dimensionless
+> jupiterEccentrity = 4.8775e-2
+>
+> jupiterMajRad :: Distance
+> jupiterMajRad = (jupiterPerihelion + jupiterAphelion) / 2
+
+> earthAphelion   :: Distance
+> earthAphelion   = 1.520982e11
+> earthPerihelion :: Distance
+> earthPerihelion = 1.470983e11
+> earthEccentrity :: Double     -- Eccentricity is dimensionless
+> earthEccentrity = 1.6711e-2
+>
+> earthMajRad :: Distance
+> earthMajRad = (earthPerihelion + earthAphelion) / 2
+
+Kepler's third law states, "The square of the orbital period of a
+planet is directly proportional to the cube of the semi-major axis of
+its orbit". Here it is in mathematical form:
+
+$$
+T^2 = \frac{4 \pi^2 a^3}{GM}
+$$
+
+where $T$ is the period of the orbit, $a$ is the major radius of the
+elliptical orbit (Kepler's first law: "The orbit of every planet is an
+ellipse with the Sun at one of the two foci"), $G$ is the
+gravitational constant and $M$ is the mass of the sun.
+
+From this we can calculate the mean angular velocity: $n = 2\pi / T$.
+
+> nJupiter :: Double
+> nJupiter = sqrt $ gConst * sunMass / jupiterMajRad^3
+
+$$
+\begin{align*}
+r &= \frac{a(1 - e^2)}{1 - e\cos\theta} \\
+r^2\dot{\theta} &= \sqrt{(1 - e^2)}na^2 \\
+GM_{\rm Sun} &= n^2a^3
+\end{align*}
+$$
+
+where $G$ is the gravitational constant, $n = \frac{2\pi}{T}$ is the
+mean angular orbital velocity, $a$ is the major access of the planet's
+ellipse and $e$ is the eccentricity.
+
+Finally we can calculate Jupiter's velocity by assuming that its
+perihelion is on the $x$-axis and that its velocity in the $x$
+direction must be $0$.
+
+Let us calculate the initial conditions assuming that Jupiter starts
+at its perihelion. The angular velocity at that point is entirely in
+the negative $y$ direction.
+
+With the Leapfrog Method we need the velocity to be half a time step
+before the perihelion.
+
+If we take $(0.0, -v_p, 0.0)$ to be the velocity of Jupiter at the
+perihelion then if $\delta\theta$ is the angle with respect to the
+negative y-axis at half a time step before Jupiter reaches the
+perihelion then the velocity of Jupiter at this point is given by
+simple trigonometry:
+$$
+(-v_p \sin(\delta\theta), -v_p \cos(\delta\theta), 0.0) \approx (-v_p\delta\theta, -v_p(1-\delta\theta^2 / 2), 0.0)
+$$
+
+> jupiterThetaDotP :: Double -- radians per second
+> jupiterThetaDotP = nJupiter *
+>                    jupiterMajRad^2 *
+>                    sqrt (1 - jupiterEccentrity^2) / jupiterPerihelion^2
+> jupiterDeltaThetaP :: Double -- radians
+> jupiterDeltaThetaP = jupiterThetaDotP * dt / 2
+>
+> jupiterVPeri :: Speed
+> jupiterVPeri = jupiterThetaDotP * jupiterPerihelion
+>
+> jupiterInitX :: Speed
+> jupiterInitX = negate $ jupiterVPeri * jupiterDeltaThetaP
+>
+> jupiterInitY :: Speed
+> jupiterInitY = negate $ jupiterVPeri * (1 - jupiterDeltaThetaP^2 / 2)
+>
+> jupiterV :: (Speed, Speed, Speed)
+> jupiterV = (jupiterInitX, jupiterInitY, 0.0)
+>
+> jupiterR :: (Distance, Distance, Distance)
+> jupiterR = (negate jupiterPerihelion, 0.0, 0.0)
+
+We can do the same for Earth but we assume the earth is at its
+perihelion on the opposite side of the Sun to Jupiter.
+
+> nEarth :: Double
+> nEarth = sqrt $ gConst * sunMass / earthMajRad^3
+>
+> earthThetaDotP :: Double -- radians per second
+> earthThetaDotP = nEarth *
+>                  earthMajRad^2 *
+>                  sqrt (1 - earthEccentrity^2) / earthPerihelion^2
+> earthDeltaThetaP :: Double -- radians
+> earthDeltaThetaP = earthThetaDotP * dt / 2
+>
+> earthVPeri :: Speed
+> earthVPeri = earthThetaDotP * earthPerihelion
+>
+> earthInitX :: Speed
+> earthInitX = earthVPeri * earthDeltaThetaP
+>
+> earthInitY :: Speed
+> earthInitY = earthVPeri * (1 - earthDeltaThetaP^2 / 2)
+>
+> earthV :: (Speed, Speed, Speed)
+> earthV = (earthInitX, earthInitY, 0.0)
+>
+> earthR :: (Distance, Distance, Distance)
+> earthR = (earthPerihelion, 0.0, 0.0)
+
+For completeness we give the Sun's starting conditions.
+
+> sunV :: (Speed, Speed, Speed)
+> sunV = (0.0, 0.0, 0.0)
+>
+> sunR :: (Distance, Distance, Distance)
+> sunR = (0.0, 0.0, 0.0)
+
+> initVs :: Array U DIM2 Speed
+> initVs = fromListUnboxed (Z :. nBodies :. spaceDim) $ concat xs
+>   where
+>     nBodies = length xs
+>     xs = [ [earthX,   earthY,   earthZ]
+>          , [jupiterX, jupiterY, jupiterZ]
+>          , [sunX,     sunY,     sunZ]
+>          ]
+>     (earthX,   earthY,   earthZ)   = earthV
+>     (jupiterX, jupiterY, jupiterZ) = jupiterV
+>     (sunX,     sunY,     sunZ)     = sunV
+
+> initRs :: Array U DIM2 Distance
+> initRs = fromListUnboxed (Z :. nBodies :. spaceDim) $ concat xs
+>   where
+>     nBodies = length xs
+>     xs = [ [earthX,   earthY,   earthZ]
+>          , [jupiterX, jupiterY, jupiterZ]
+>          , [sunX,     sunY,     sunZ]
+>          ]
+>     (earthX,   earthY,   earthZ)   = earthR
+>     (jupiterX, jupiterY, jupiterZ) = jupiterR
+>     (sunX,     sunY,     sunZ)     = sunR
+
+> masses :: Array U DIM1 Mass
+> masses = fromListUnboxed (Z :. nBodies) xs
+>   where
+>     nBodies = length xs
+>     xs = [ earthMass
+>          , jupiterMass
+>          , sunMass
+>          ]
+
+> stepN :: forall m . Monad m =>
+>          Int -> Masses -> Positions -> Momenta ->
+>          m (Positions, Momenta)
+> stepN n masses = curry updaterMulti
+>   where
+>     updaterMulti = foldr (>=>) return updaters
+>     updaters :: [(Positions, Momenta) -> m (Positions, Momenta)]
+>     updaters = replicate n (uncurry (stepOnceP dt masses))
 
 Performance
 -----------
+
+> main :: IO ()
+> main = do
+>   rsVs <- stepN 1 masses initRs initVs
+>   putStrLn $ show rsVs
+
+
+-- >   let rs = fst rsVs
+-- >       vs = snd rsVs
+-- >       erx = rs!(Z :. (0 :: Int) :. (0 :: Int))
+-- >       ery = rs!(Z :. (0 :: Int) :. (1 :: Int))
+-- >       erz = rs!(Z :. (0 :: Int) :. (2 :: Int))
+-- >       srx = rs!(Z :. (2 :: Int) :. (0 :: Int))
+-- >       sry = rs!(Z :. (2 :: Int) :. (1 :: Int))
+-- >       srz = rs!(Z :. (2 :: Int) :. (2 :: Int))
+-- >   putStrLn $ printf "%16.10e %16.10e %16.10e" erx ery erz
+-- >   putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
 
 Bibliography
 ------------
