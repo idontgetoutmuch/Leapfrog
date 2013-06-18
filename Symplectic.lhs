@@ -116,6 +116,8 @@ $$
 > import Control.Monad.Identity
 > import Text.Printf
 
+> import Debug.Trace
+
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
 
@@ -446,36 +448,47 @@ $$
 >       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >       ms2 = extend (Any :. j) ms
 
--- > stepMomentumP :: ( Monad m
--- >                  , Source a Double
--- >                  , Source b Double
--- >                  , Source c Double
--- >                  ) =>
--- >                  Double ->
--- >                  Array a DIM2 Double ->
--- >                  Array b DIM1 Double ->
--- >                  Array c DIM2 Double ->
--- >                  m (Array U DIM2 Double)
-
-
+> stepMomentumP :: forall a b c m . ( Monad m
+>                  , Source a Double
+>                  , Source b Double
+>                  , Source c Double
+>                  ) =>
+>                  Double ->
+>                  Array a DIM2 Double ->
+>                  Array b DIM1 Double ->
+>                  Array c DIM2 Double ->
+>                  m (Array U DIM2 Double)
 > stepMomentumP h qs ms ps =
 >   do fs <- sumP $ transpose $ zeroDiags' fss
->      computeP $ ps +^ (fs *^ dt2 /^ ms2)
+>      let foo :: Array D DIM2 Double
+>          foo = qs +^ qs -^ qs
+>      bar <- computeP foo :: m (Array U DIM2 Double)
+>      -- trace ("qs:\n" ++ show bar) $ return ()
+>      let foo :: Array D DIM2 Double
+>          foo = ps +^ ps -^ ps
+>      bar <- computeP foo :: m (Array U DIM2 Double)
+>      -- trace ("ps:\n" ++ show bar) $ return ()
+>      -- trace ("fs:\n" ++ show fs) $ return ()
+>      urk <- computeP (fs *^ dt2 /^ ms2) :: m (Array U DIM2 Double)
+>      -- trace ("Updates:\n" ++ show urk) $ return ()
+>      baz <- computeP (ps +^ (fs *^ dt2 {- /^ ms2 -}))
+>      -- trace ("newPs:\n" ++ show baz) $ return baz
+>      return baz
 >   where
->     ms2 = extend (Any :. j) ms
 >     is = repDim2to3Outer $ prodPairsMasses ms
 >     qDiffs = pointDiffs qs
->     ds     = repDim2to3Outer $
->              Repa.map (^3) $
->              Repa.map sqrt $
->              sumS $
->              Repa.map (^2) $
->              qDiffs
+>     preDs = Repa.map (^3) $
+>             Repa.map sqrt $
+>             sumS $
+>             Repa.map (^2) $
+>             qDiffs
+>     ds    = repDim2to3Outer preDs
 >     preFs = Repa.map (* (negate gConst)) $
 >             qDiffs /^ ds
 >     fss = is *^ preFs
->     Z :.i :. j :. _ = extent fss
->     dt2             = extend (Any :. i :. j) $ fromListUnboxed Z [h]
+>     Z :.i :. j :. k = extent fss
+>     dt2             = extend (Any :. i :. k) $ fromListUnboxed Z [h]
+>     ms2             = extend (Any :. k) ms
 
 > stepOnceP :: ( Monad m
 >              , Source a Double
@@ -489,7 +502,9 @@ $$
 >              m (Array U DIM2 Double, Array U DIM2 Double)
 > stepOnceP h ms qs ps = do
 >   newPs <- stepMomentumP h qs ms ps
+>   -- trace ("newPs:\n" ++ show newPs) $ return ()
 >   newQs <- stepPositionP h qs ms newPs
+>   -- trace ("newQs:\n" ++ show newQs) $ return ()
 >   return (newQs, newPs)
 
 > -- FIXME
@@ -785,7 +800,7 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 Performance
 -----------
 
-> nSteps = 360
+> nSteps = 36 * 12
 
 > main :: IO ()
 > main = do
@@ -793,21 +808,23 @@ Performance
 >   rsVs <- stepN' nSteps masses initRs initPs
 >   -- putStrLn $ show rsVs
 >   let rs = Prelude.map fst rsVs
->       vs = Prelude.map snd rsVs
->       erx = (rs!!nSteps)!(Z :. (0 :: Int) :. (0 :: Int))
->       ery = (rs!!nSteps)!(Z :. (0 :: Int) :. (1 :: Int))
->       erz = (rs!!nSteps)!(Z :. (0 :: Int) :. (2 :: Int))
->       jrx = (rs!!nSteps)!(Z :. (1 :: Int) :. (0 :: Int))
->       jry = (rs!!nSteps)!(Z :. (1 :: Int) :. (1 :: Int))
->       jrz = (rs!!nSteps)!(Z :. (1 :: Int) :. (2 :: Int))
->       srx = (rs!!nSteps)!(Z :. (2 :: Int) :. (0 :: Int))
->       sry = (rs!!nSteps)!(Z :. (2 :: Int) :. (1 :: Int))
->       srz = (rs!!nSteps)!(Z :. (2 :: Int) :. (2 :: Int))
->   putStrLn $ printf "%16.10e %16.10e %16.10e" erx ery erz
->   putStrLn $ printf "%16.10e %16.10e %16.10e" jrx jry jrz
->   putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
->   h <- zipWithM (hamiltonianP masses) rs vs
->   putStrLn $ show $ take 10 $ drop (nSteps - 10) h
+>   -- putStrLn $ show $ extent $ rs!!nSteps
+>   let vs = Prelude.map snd rsVs
+>   putStrLn $ show $ extent $ vs!!nSteps
+>   let erx nSteps = (rs!!nSteps)!(Z :. (0 :: Int) :. (0 :: Int))
+>       ery nSteps = (rs!!nSteps)!(Z :. (0 :: Int) :. (1 :: Int))
+>       erz nSteps = (rs!!nSteps)!(Z :. (0 :: Int) :. (2 :: Int))
+>       jrx nSteps = (rs!!nSteps)!(Z :. (1 :: Int) :. (0 :: Int))
+>       jry nSteps = (rs!!nSteps)!(Z :. (1 :: Int) :. (1 :: Int))
+>       jrz nSteps = (rs!!nSteps)!(Z :. (1 :: Int) :. (2 :: Int))
+>       -- srx = (rs!!nSteps)!(Z :. (2 :: Int) :. (0 :: Int))
+>       -- sry = (rs!!nSteps)!(Z :. (2 :: Int) :. (1 :: Int))
+>       -- srz = (rs!!nSteps)!(Z :. (2 :: Int) :. (2 :: Int))
+>   mapM (\n -> putStrLn $ printf "%16.10e %16.10e %16.10e" (erx n) (ery n) (erz n)) [0 .. nSteps - 1]
+>   mapM (\n -> putStrLn $ printf "%16.10e %16.10e %16.10e" (jrx n) (jry n) (jrz n)) [0 .. nSteps - 1]
+>   -- putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
+>   h <- zipWithM (hamiltonianP masses) vs rs
+>   putStrLn $ show $ h
 
 > simPlanets = runIdentity $ do
 >   initPs <- initPsM
@@ -817,16 +834,20 @@ Performance
 >       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
 >       jxs = Prelude.map (!(Z :. (1 :: Int) :. (0 :: Int))) ps
 >       jys = Prelude.map (!(Z :. (1 :: Int) :. (1 :: Int))) ps
->   return $ zip (zip exs eys) (zip jxs jys)
+>       sxs = Prelude.map (!(Z :. (2 :: Int) :. (0 :: Int))) ps
+>       sys = Prelude.map (!(Z :. (2 :: Int) :. (1 :: Int))) ps
+>   return $ zip3 (zip exs eys) (zip jxs jys) (zip sxs sys)
 
-```{.dia width='800'}
+```{.dia width='600'}
 import Symplectic
 import SymplecticDia
 
 dia' :: DiagramC
 
-dia' = test tickSize [ (cellColour1, map fst simPlanets)
-                     , (cellColour3, map snd simPlanets)]
+dia' = test tickSize [ (cellColour1, map (\(x, _, _) -> x) simPlanets)
+                     , (cellColour2, map (\(_, y, _) -> y) simPlanets)
+                     , (cellColour3, map (\(_, _, z) -> z) simPlanets)
+                     ]
 
 dia = dia'
 ```
