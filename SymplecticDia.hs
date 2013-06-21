@@ -54,7 +54,7 @@ test tickSize uss =
 hist :: AlphaColour Double -> [(Double, Double)] -> DiagramC
 hist cellColour xs = position $ hist' where
     hist' = zip (map p2 xs) (repeat endpt)
-    tSize = 0.01
+    tSize = 0.002
     endpt = circle tSize # fcA cellColour  # lw 0
 
 normalise :: [(Double, Double)] -> [(Double, Double)]

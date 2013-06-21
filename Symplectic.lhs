@@ -107,6 +107,7 @@ $$
 >   , trs
 >   , brs
 >   , simPlanets
+>   , outerPlanets
 >   ) where
 
 > import Data.Array.Repa hiding ((++), zipWith)
@@ -430,7 +431,7 @@ p_k^{n+1} &= p_k^n + h G\sum_{j \neq k}m_k m_i \frac{q_k^{n+1} - q_j^{n+1}}{\|q_
 \end{aligned}
 $$
 
-> stepPositionP :: ( Monad m
+> stepPositionP :: forall a b c m . ( Monad m
 >                  , Source a Double
 >                  , Source b Double
 >                  , Source c Double
@@ -441,7 +442,14 @@ $$
 >                  Array c DIM2 Double ->
 >                  m (Array U DIM2 Double)
 > stepPositionP h qs ms ps = do
->   computeP $ qs +^ (ps *^ h2 /^ ms2)
+>   do foo <- computeP $ qs +^ qs -^ qs :: m (Array U DIM2 Double)
+>      -- trace ("h:\n" ++ show h) $ return ()
+>      -- trace ("qs:\n" ++ show foo) $ return ()
+>      bar <- computeP $ ps +^ ps -^ ps :: m (Array U DIM2 Double)
+>      -- trace ("ps:\n" ++ show bar) $ return ()
+>      newQs <- computeP $ qs +^ (ps *^ h2 /^ ms2)
+>      -- trace ("newQs:\n" ++ show newQs) $ return ()
+>      return newQs
 >     where
 >       (Z :. i :. j) = extent ps
 >
@@ -454,26 +462,18 @@ $$
 >                  , Source c Double
 >                  ) =>
 >                  Double ->
+>                  Double ->
 >                  Array a DIM2 Double ->
 >                  Array b DIM1 Double ->
 >                  Array c DIM2 Double ->
 >                  m (Array U DIM2 Double)
-> stepMomentumP h qs ms ps =
->   do fs <- sumP $ transpose $ zeroDiags' fss
->      let foo :: Array D DIM2 Double
->          foo = qs +^ qs -^ qs
->      bar <- computeP foo :: m (Array U DIM2 Double)
->      -- trace ("qs:\n" ++ show bar) $ return ()
->      let foo :: Array D DIM2 Double
->          foo = ps +^ ps -^ ps
->      bar <- computeP foo :: m (Array U DIM2 Double)
->      -- trace ("ps:\n" ++ show bar) $ return ()
->      -- trace ("fs:\n" ++ show fs) $ return ()
->      urk <- computeP (fs *^ dt2 /^ ms2) :: m (Array U DIM2 Double)
->      -- trace ("Updates:\n" ++ show urk) $ return ()
->      baz <- computeP (ps +^ (fs *^ dt2 {- /^ ms2 -}))
->      -- trace ("newPs:\n" ++ show baz) $ return baz
->      return baz
+> stepMomentumP gConst h qs ms ps =
+>   do foo <- computeP $ ps +^ ps -^ ps :: m (Array U DIM2 Double)
+>      -- trace (show foo) $ return ()
+>      fs <- sumP $ transpose $ zeroDiags' fss
+>      newPs <- computeP $ ps +^ (fs *^ dt2)
+>      -- trace (show newPs) $ return ()
+>      return newPs
 >   where
 >     is = repDim2to3Outer $ prodPairsMasses ms
 >     qDiffs = pointDiffs qs
@@ -496,27 +496,29 @@ $$
 >              , Source c Double
 >              ) =>
 >              Double ->
+>              Double ->
 >              Array b DIM1 Double ->
 >              Array a DIM2 Double ->
 >              Array c DIM2 Double ->
 >              m (Array U DIM2 Double, Array U DIM2 Double)
-> stepOnceP h ms qs ps = do
->   newPs <- stepMomentumP h qs ms ps
->   -- trace ("newPs:\n" ++ show newPs) $ return ()
+> stepOnceP gConst h ms qs ps = do
+>   -- trace (show gConst) $ return ()
+>   -- trace (show h) $ return ()
+>   newPs <- stepMomentumP gConst h qs ms ps
 >   newQs <- stepPositionP h qs ms newPs
->   -- trace ("newQs:\n" ++ show newQs) $ return ()
 >   return (newQs, newPs)
 
 > -- FIXME
 > repDim2to3Outer a = extend (Any :. spaceDim) a
 
 
+The gravitational constant in SI units and in the units we use to
+simulate the 5 outermost planets of the solar system: Astronomical
+Units, mass relative to the sun and earth days.
 
-> gConst :: Double
-> -- gConst = 1.0 -- 2.95912208286e-4
-> gConst = 6.67384e-11        -- gravitational constant
-
-
+> gConst, gConstAu :: Double
+> gConstAu = 2.95912208286e-4
+> gConst   = 6.67384e-11
 
 > spaceDim :: Int
 > spaceDim = 3
@@ -535,18 +537,24 @@ $$
 >     f _ (Z :. i :. j :. k) | i == j    = 0.0
 >                            | otherwise = x!(Z :. i :. j :. k)
 
-> hamiltonianP :: Masses -> Momenta -> Positions -> IO Double
-> hamiltonianP ms ps qs = do preKes <- sumP $ ps *^ ps
->                            ke     <- sumP $ preKes /^ ms
+> hamiltonianP :: Double -> Masses -> Momenta -> Positions -> IO Double
+> hamiltonianP gConst ms qs ps = do
+>   -- trace (show ps) $ return ()
+>   preKes <- sumP $ ps *^ ps
+>   -- trace (show preKes) $ return ()
+>   ke     <- sumP $ preKes /^ ms
+>   -- trace (show ke) $ return ()
 >
->                            ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
->                            let ds   = Repa.map sqrt ds2
->                                is   = prodPairsMasses ms
->                                pess = zeroDiags $ Repa.map (* (negate gConst)) $ is /^ ds
->                            pes <- sumP pess
->                            pe  <- sumP pes
->                            te :: Array U DIM0 Double <- computeP $ ke +^ pe
->                            return $ head $ toList $ Repa.map (* 0.5) te
+>   ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
+>   let ds   = Repa.map sqrt ds2
+>       is   = prodPairsMasses ms
+>       pess = zeroDiags $ Repa.map (* (negate gConst)) $ is /^ ds
+>   pes <- sumP pess
+>   -- trace (show pes) $ return ()
+>   pe  <- sumP pes
+>   -- trace (show pe) $ return ()
+>   te :: Array U DIM0 Double <- computeP $ ke +^ pe
+>   return $ head $ toList $ Repa.map (* 0.5) te
 
 > repDim1To2Outer :: Source a Double =>
 >                    Array a DIM1 Double ->
@@ -746,8 +754,8 @@ For completeness we give the Sun's starting conditions.
 >     (jupiterX, jupiterY, jupiterZ) = jupiterV
 >     (sunX,     sunY,     sunZ)     = sunV
 
-> initPsM :: Monad m => m (Array U DIM2 Double)
-> initPsM = computeP $ ms2 *^ initVs
+> initPs :: Array U DIM2 Double
+> initPs = runIdentity $ computeP $ ms2 *^ initVs
 >   where
 >     (Z :. i :. j) = extent initVs
 >     ms2 = extend (Any :. j) masses
@@ -780,32 +788,157 @@ For completeness we give the Sun's starting conditions.
 >   where
 >     updaterMulti = foldr (>=>) return updaters
 >     updaters :: [(Positions, Momenta) -> m (Positions, Momenta)]
->     updaters = replicate n (uncurry (stepOnceP dt masses))
+>     updaters = replicate n (uncurry (stepOnceP gConst dt masses))
 
 FIXME: Surely this can be as an instance of some nice recursion pattern.
 
 > stepN' :: Monad m =>
->           Int -> Masses -> Positions -> Momenta ->
+>           Int -> Double -> Double -> Masses -> Positions -> Momenta ->
 >           m [(Positions, Momenta)]
-> stepN' n ms rs vs = do
+> stepN' n gConst dt ms rs vs = do
+>   -- trace (show gConst) $ return ()
 >   rsVs <- stepAux n rs vs
 >   return $ (rs, vs) : rsVs
 >   where
 >     stepAux 0  _  _ = return []
 >     stepAux n rs vs = do
->       (newRs, newVs) <- stepOnceP dt ms rs vs
+>       (newRs, newVs) <- stepOnceP gConst dt ms rs vs
 >       rsVs <- stepAux (n-1) newRs newVs
 >       return $ (newRs, newVs) : rsVs
+
+The Outer Solar System
+----------------------
+
+> mosss = fromListUnboxed (Z :. n) xs
+>   where
+>     xs = [ 9.54786104043e-4
+>          , 2.85583733151e-4
+>          , 4.37273164546e-5
+>          , 5.17759138449e-5
+>          , 1.0 / 1.3e8
+>          , 1.00000597682
+>          ]
+>     n = length xs
+>
+> qosss = fromListUnboxed (Z :. n :. spaceDim) xs
+>   where
+>     xs = [  -3.5023653
+>          ,  -3.8169847
+>          ,  -1.5507963
+>          ,   9.0755314
+>          ,  -3.0458353
+>          ,  -1.6483708
+>          ,   8.3101420
+>          , -16.2901086
+>          ,  -7.2521278
+>          ,  11.4707666
+>          , -25.7294829
+>          , -10.8169456
+>          , -15.5387357
+>          , -25.2225594
+>          ,  -3.1902382
+>          ,   0.0
+>          ,   0.0
+>          ,   0.0
+>          ]
+>     n = length xs `div` spaceDim
+> 
+> posss :: Array U DIM2 Double        
+> posss = runIdentity $
+>         computeP $
+>         vosss *^ ys
+>   where
+>     ys = extend (Any :. spaceDim) mosss
+
+> vosss :: Array U DIM2 Double        
+> vosss = fromListUnboxed (Z :. n :. spaceDim) xs
+>   where
+>     xs = [  0.00565429
+>          , -0.00412490
+>          , -0.00190589
+>          ,  0.00168318
+>          ,  0.00483525
+>          ,  0.00192462
+>          ,  0.00354178
+>          ,  0.00137102
+>          ,  0.00055029
+>          ,  0.00288930
+>          ,  0.00114527
+>          ,  0.00039677
+>          ,  0.00276725
+>          , -0.00170702
+>          , -0.00136504
+>          ,  0.0
+>          ,  0.0
+>          ,  0.0
+>          ]
+>     n = length xs `div` spaceDim
+
+> outerPlanets = runIdentity $ do
+>   rsVs <- stepN' 2001 gConstAu 10 mosss qosss posss
+>   let ps = Prelude.map fst rsVs
+>       oxs = Prelude.map (!(Z :. (5 :: Int) :. (0 :: Int))) ps
+>       oys = Prelude.map (!(Z :. (5 :: Int) :. (1 :: Int))) ps
+>       jxs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
+>       jys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
+>       sxs = Prelude.map (!(Z :. (1 :: Int) :. (0 :: Int))) ps
+>       sys = Prelude.map (!(Z :. (1 :: Int) :. (1 :: Int))) ps
+>       uxs = Prelude.map (!(Z :. (2 :: Int) :. (0 :: Int))) ps
+>       uys = Prelude.map (!(Z :. (2 :: Int) :. (1 :: Int))) ps
+>       nxs = Prelude.map (!(Z :. (3 :: Int) :. (0 :: Int))) ps
+>       nys = Prelude.map (!(Z :. (3 :: Int) :. (1 :: Int))) ps
+>       pxs = Prelude.map (!(Z :. (4 :: Int) :. (0 :: Int))) ps
+>       pys = Prelude.map (!(Z :. (4 :: Int) :. (1 :: Int))) ps
+>   return $ [ (zip oxs oys)
+>            , (zip jxs jys)
+>            , (zip sxs sys)
+>            , (zip uxs uys)
+>            , (zip nxs nys)
+>            , (zip pxs pys)
+>            ]
+
+> main :: IO ()
+> main = do
+>   rsVs <- stepN' 201 gConstAu 100 mosss qosss posss
+>   h <- zipWithM (hamiltonianP gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
+>   putStrLn $ show $ h
+>   putStrLn $ show $ length outerPlanets
+>   let erx nSteps = fst $ (!!nSteps) $ (outerPlanets!!0)
+>       ery nSteps = snd $ (!!nSteps) $ (outerPlanets!!0)
+>       jrx nSteps = fst $ (!!nSteps) $ (outerPlanets!!1)
+>       jry nSteps = snd $ (!!nSteps) $ (outerPlanets!!1)
+>   mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (erx n) (ery n)) [0 .. nSteps - 1]
+>   mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (jrx n) (jry n)) [0 .. nSteps - 1]
+
+    [ghci]
+    Prelude.map fst $ take 5 outerPlanets
+    Prelude.map snd $ take 5 outerPlanets
+
+```{.dia width='600'}
+import Symplectic
+import SymplecticDia
+
+dia' :: DiagramC
+
+dia' = test tickSize [ (cellColour0, outerPlanets!!0)
+                     , (cellColour1, outerPlanets!!1)
+                     , (cellColour2, outerPlanets!!2)
+                     , (cellColour1, outerPlanets!!3)
+                     , (cellColour2, outerPlanets!!4)
+                     , (cellColour1, outerPlanets!!5)
+                     ]
+
+dia = dia'
+```
 
 Performance
 -----------
 
-> nSteps = 36 * 12
+> nSteps = 36 -- 36 * 12
 
-> main :: IO ()
-> main = do
->   initPs <- initPsM
->   rsVs <- stepN' nSteps masses initRs initPs
+> main' :: IO ()
+> main' = do
+>   rsVs <- stepN' nSteps gConst dt masses initRs initPs
 >   -- putStrLn $ show rsVs
 >   let rs = Prelude.map fst rsVs
 >   -- putStrLn $ show $ extent $ rs!!nSteps
@@ -823,12 +956,11 @@ Performance
 >   mapM (\n -> putStrLn $ printf "%16.10e %16.10e %16.10e" (erx n) (ery n) (erz n)) [0 .. nSteps - 1]
 >   mapM (\n -> putStrLn $ printf "%16.10e %16.10e %16.10e" (jrx n) (jry n) (jrz n)) [0 .. nSteps - 1]
 >   -- putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
->   h <- zipWithM (hamiltonianP masses) vs rs
+>   h <- zipWithM (hamiltonianP gConst masses) vs rs
 >   putStrLn $ show $ h
 
 > simPlanets = runIdentity $ do
->   initPs <- initPsM
->   rsVs <- stepN' nSteps masses initRs initPs
+>   rsVs <- stepN' nSteps gConst dt masses initRs initPs
 >   let ps = Prelude.map fst rsVs
 >       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
 >       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
@@ -844,9 +976,9 @@ import SymplecticDia
 
 dia' :: DiagramC
 
-dia' = test tickSize [ (cellColour1, map (\(x, _, _) -> x) simPlanets)
-                     , (cellColour2, map (\(_, y, _) -> y) simPlanets)
-                     , (cellColour3, map (\(_, _, z) -> z) simPlanets)
+dia' = test tickSize [ (cellColour0, map (\(x, _, _) -> x) simPlanets)
+                     , (cellColour1, map (\(_, y, _) -> y) simPlanets)
+                     , (cellColour2, map (\(_, _, z) -> z) simPlanets)
                      ]
 
 dia = dia'
