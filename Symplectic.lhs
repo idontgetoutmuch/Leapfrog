@@ -117,8 +117,6 @@ $$
 > import Control.Monad.Identity
 > import Text.Printf
 
-> import Debug.Trace
-
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
 
@@ -442,13 +440,7 @@ $$
 >                  Array c DIM2 Double ->
 >                  m (Array U DIM2 Double)
 > stepPositionP h qs ms ps = do
->   do foo <- computeP $ qs +^ qs -^ qs :: m (Array U DIM2 Double)
->      -- trace ("h:\n" ++ show h) $ return ()
->      -- trace ("qs:\n" ++ show foo) $ return ()
->      bar <- computeP $ ps +^ ps -^ ps :: m (Array U DIM2 Double)
->      -- trace ("ps:\n" ++ show bar) $ return ()
->      newQs <- computeP $ qs +^ (ps *^ h2 /^ ms2)
->      -- trace ("newQs:\n" ++ show newQs) $ return ()
+>   do newQs <- computeP $ qs +^ (ps *^ h2 /^ ms2)
 >      return newQs
 >     where
 >       (Z :. i :. j) = extent ps
@@ -468,11 +460,8 @@ $$
 >                  Array c DIM2 Double ->
 >                  m (Array U DIM2 Double)
 > stepMomentumP gConst h qs ms ps =
->   do foo <- computeP $ ps +^ ps -^ ps :: m (Array U DIM2 Double)
->      -- trace (show foo) $ return ()
->      fs <- sumP $ transpose $ zeroDiags' fss
+>   do fs <- sumP $ transpose $ zeroDiags' fss
 >      newPs <- computeP $ ps +^ (fs *^ dt2)
->      -- trace (show newPs) $ return ()
 >      return newPs
 >   where
 >     is = repDim2to3Outer $ prodPairsMasses ms
@@ -502,8 +491,6 @@ $$
 >              Array c DIM2 Double ->
 >              m (Array U DIM2 Double, Array U DIM2 Double)
 > stepOnceP gConst h ms qs ps = do
->   -- trace (show gConst) $ return ()
->   -- trace (show h) $ return ()
 >   newPs <- stepMomentumP gConst h qs ms ps
 >   newQs <- stepPositionP h qs ms newPs
 >   return (newQs, newPs)
@@ -539,20 +526,15 @@ Units, mass relative to the sun and earth days.
 
 > hamiltonianP :: Double -> Masses -> Momenta -> Positions -> IO Double
 > hamiltonianP gConst ms qs ps = do
->   -- trace (show ps) $ return ()
 >   preKes <- sumP $ ps *^ ps
->   -- trace (show preKes) $ return ()
 >   ke     <- sumP $ preKes /^ ms
->   -- trace (show ke) $ return ()
 >
 >   ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
 >   let ds   = Repa.map sqrt ds2
 >       is   = prodPairsMasses ms
 >       pess = zeroDiags $ Repa.map (* (negate gConst)) $ is /^ ds
 >   pes <- sumP pess
->   -- trace (show pes) $ return ()
 >   pe  <- sumP pes
->   -- trace (show pe) $ return ()
 >   te :: Array U DIM0 Double <- computeP $ ke +^ pe
 >   return $ head $ toList $ Repa.map (* 0.5) te
 
@@ -796,7 +778,6 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >           Int -> Double -> Double -> Masses -> Positions -> Momenta ->
 >           m [(Positions, Momenta)]
 > stepN' n gConst dt ms rs vs = do
->   -- trace (show gConst) $ return ()
 >   rsVs <- stepAux n rs vs
 >   return $ (rs, vs) : rsVs
 >   where
@@ -875,7 +856,7 @@ The Outer Solar System
 >     n = length xs `div` spaceDim
 
 > outerPlanets = runIdentity $ do
->   rsVs <- stepN' 2001 gConstAu 10 mosss qosss posss
+>   rsVs <- stepN' 2000 gConstAu 10 mosss qosss posss
 >   let ps = Prelude.map fst rsVs
 >       oxs = Prelude.map (!(Z :. (5 :: Int) :. (0 :: Int))) ps
 >       oys = Prelude.map (!(Z :. (5 :: Int) :. (1 :: Int))) ps
@@ -911,8 +892,8 @@ The Outer Solar System
 >   mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (jrx n) (jry n)) [0 .. nSteps - 1]
 
     [ghci]
-    Prelude.map fst $ take 5 outerPlanets
-    Prelude.map snd $ take 5 outerPlanets
+    take 5 (outerPlanets!!0)
+    take 5 (outerPlanets!!1)
 
 ```{.dia width='600'}
 import Symplectic
