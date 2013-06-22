@@ -108,6 +108,7 @@ $$
 >   , brs
 >   , simPlanets
 >   , outerPlanets
+>   , main
 >   ) where
 
 > import Data.Array.Repa hiding ((++), zipWith)
@@ -572,6 +573,9 @@ Units, mass relative to the sun and earth days.
 >   where (Z :. i :. _j) = extent a
 >
 
+Jupiter, Earth and Sun
+----------------------
+
 > k :: Double
 > k = 24*60*60                -- seconds in a day
 
@@ -764,9 +768,9 @@ For completeness we give the Sun's starting conditions.
 >          ]
 
 > stepN :: forall m . Monad m =>
->          Int -> Masses -> Positions -> Momenta ->
+>          Int -> Double -> Double -> Masses -> Positions -> Momenta ->
 >          m (Positions, Momenta)
-> stepN n masses = curry updaterMulti
+> stepN n gConst dt masses = curry updaterMulti
 >   where
 >     updaterMulti = foldr (>=>) return updaters
 >     updaters :: [(Positions, Momenta) -> m (Positions, Momenta)]
@@ -856,7 +860,7 @@ The Outer Solar System
 >     n = length xs `div` spaceDim
 
 > outerPlanets = runIdentity $ do
->   rsVs <- stepN' 2000 gConstAu 10 mosss qosss posss
+>   rsVs <- stepN' 2000 gConstAu 100 mosss qosss posss
 >   let ps = Prelude.map fst rsVs
 >       oxs = Prelude.map (!(Z :. (5 :: Int) :. (0 :: Int))) ps
 >       oys = Prelude.map (!(Z :. (5 :: Int) :. (1 :: Int))) ps
@@ -880,16 +884,24 @@ The Outer Solar System
 
 > main :: IO ()
 > main = do
->   rsVs <- stepN' 201 gConstAu 100 mosss qosss posss
+>   rsVs <- stepN 30000 gConstAu 100 mosss qosss posss
+>   putStrLn $ show rsVs
+
+> main'' :: IO ()
+> main'' = do
+>   rsVs <- stepN' 8000 gConstAu 100 mosss qosss posss
 >   h <- zipWithM (hamiltonianP gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
->   putStrLn $ show $ h
+>   -- putStrLn $ show $ h
+>   putStrLn $ show $ minimum h
+>   putStrLn $ show $ maximum h
 >   putStrLn $ show $ length outerPlanets
 >   let erx nSteps = fst $ (!!nSteps) $ (outerPlanets!!0)
 >       ery nSteps = snd $ (!!nSteps) $ (outerPlanets!!0)
 >       jrx nSteps = fst $ (!!nSteps) $ (outerPlanets!!1)
 >       jry nSteps = snd $ (!!nSteps) $ (outerPlanets!!1)
->   mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (erx n) (ery n)) [0 .. nSteps - 1]
->   mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (jrx n) (jry n)) [0 .. nSteps - 1]
+>   -- mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (erx n) (ery n)) [0 .. nSteps - 1]
+>   -- mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (jrx n) (jry n)) [0 .. nSteps - 1]
+>   putStrLn "Hello"
 
     [ghci]
     take 5 (outerPlanets!!0)
@@ -901,12 +913,12 @@ import SymplecticDia
 
 dia' :: DiagramC
 
-dia' = test tickSize [ (cellColour0, outerPlanets!!0)
-                     , (cellColour1, outerPlanets!!1)
-                     , (cellColour2, outerPlanets!!2)
-                     , (cellColour1, outerPlanets!!3)
-                     , (cellColour2, outerPlanets!!4)
-                     , (cellColour1, outerPlanets!!5)
+dia' = test tickSize [ (cellColour0, zipWith (-) (outerPlanets!!0) (outerPlanets!!0))
+                     , (cellColour1, zipWith (-) (outerPlanets!!1) (outerPlanets!!0))
+                     , (cellColour2, zipWith (-) (outerPlanets!!2) (outerPlanets!!0))
+                     , (cellColour1, zipWith (-) (outerPlanets!!3) (outerPlanets!!0))
+                     , (cellColour2, zipWith (-) (outerPlanets!!4) (outerPlanets!!0))
+                     , (cellColour3, zipWith (-) (outerPlanets!!5) (outerPlanets!!0))
                      ]
 
 dia = dia'
