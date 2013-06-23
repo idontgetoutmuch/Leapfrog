@@ -118,6 +118,16 @@ $$
 > import Control.Monad.Identity
 > import Text.Printf
 
+> import qualified Data.Yarr as Y
+> import Data.Yarr (loadS, dzip2, dzip3, F, L)
+> import qualified Data.Yarr.Repr.Delayed as YD
+> import Data.Yarr.Repr.Delayed (UArray)
+> import qualified Data.Yarr.Shape as YS
+> import Data.Yarr.Shape (fill, Dim1)
+> import qualified Data.Yarr.Utils.FixedVector as V
+> import Data.Yarr.Utils.FixedVector (VecList, N3)
+> import qualified Data.Yarr.IO.List as YIO
+
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
 
@@ -448,6 +458,21 @@ $$
 >
 >       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >       ms2 = extend (Any :. j) ms
+
+> type ArrayY = UArray F L Dim1
+
+> type PositionY   = VecList N3 Double
+> type SpeedY      = VecList N3 Double
+> type VelocitiesY = ArrayY SpeedY
+> type PositionsY  = ArrayY PositionY
+> 
+> type MassesY = ArrayY Mass
+
+> stepPositionY :: Double -> PositionsY -> MassesY -> VelocitiesY -> IO ()
+> stepPositionY h ps ms vs = loadS fill (dzip3 upd ps ms vs) ps
+>   where
+>     upd :: PositionY -> Mass -> SpeedY -> PositionY
+>     upd pos mass speed = V.zipWith (+) pos (V.map (* (h / mass)) speed)
 
 > stepMomentumP :: forall a b c m . ( Monad m
 >                  , Source a Double
@@ -866,18 +891,6 @@ The Outer Solar System
 > outerPlanets = runIdentity $ do
 >   rsVs <- stepN' 2000 gConstAu 100 mosss qosss posss
 >   let ps = Prelude.map fst rsVs
->       oxs = Prelude.map (!(Z :. (5 :: Int) :. (0 :: Int))) ps
->       oys = Prelude.map (!(Z :. (5 :: Int) :. (1 :: Int))) ps
->       jxs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
->       jys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
->       sxs = Prelude.map (!(Z :. (1 :: Int) :. (0 :: Int))) ps
->       sys = Prelude.map (!(Z :. (1 :: Int) :. (1 :: Int))) ps
->       uxs = Prelude.map (!(Z :. (2 :: Int) :. (0 :: Int))) ps
->       uys = Prelude.map (!(Z :. (2 :: Int) :. (1 :: Int))) ps
->       nxs = Prelude.map (!(Z :. (3 :: Int) :. (0 :: Int))) ps
->       nys = Prelude.map (!(Z :. (3 :: Int) :. (1 :: Int))) ps
->       pxs = Prelude.map (!(Z :. (4 :: Int) :. (0 :: Int))) ps
->       pys = Prelude.map (!(Z :. (4 :: Int) :. (1 :: Int))) ps
 >       xxs = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (0 :: Int))) ps)
 >                         [5,0,1,2,3,4]
 >       xys = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (1 :: Int))) ps)
@@ -920,7 +933,7 @@ dia' = test tickSize [ (cellColour0, zipWith (-) (outerPlanets!!0) (outerPlanets
                      , (cellColour2, zipWith (-) (outerPlanets!!2) (outerPlanets!!0))
                      , (cellColour1, zipWith (-) (outerPlanets!!3) (outerPlanets!!0))
                      , (cellColour2, zipWith (-) (outerPlanets!!4) (outerPlanets!!0))
-                     , (cellColour1, zipWith (-) (outerPlanets!!5) (outerPlanets!!0))
+                     , (cellColour3, zipWith (-) (outerPlanets!!5) (outerPlanets!!0))
                      ]
 
 dia = dia'
