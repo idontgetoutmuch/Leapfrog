@@ -794,6 +794,7 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 The Outer Solar System
 ----------------------
 
+> mosss :: Array U DIM1 Double
 > mosss = fromListUnboxed (Z :. n) xs
 >   where
 >     xs = [ 9.54786104043e-4
@@ -859,6 +860,9 @@ The Outer Solar System
 >          ]
 >     n = length xs `div` spaceDim
 
+> sunIndex :: Int
+> sunIndex = let (Z :. i) = extent mosss in i
+
 > outerPlanets = runIdentity $ do
 >   rsVs <- stepN' 2000 gConstAu 100 mosss qosss posss
 >   let ps = Prelude.map fst rsVs
@@ -874,17 +878,15 @@ The Outer Solar System
 >       nys = Prelude.map (!(Z :. (3 :: Int) :. (1 :: Int))) ps
 >       pxs = Prelude.map (!(Z :. (4 :: Int) :. (0 :: Int))) ps
 >       pys = Prelude.map (!(Z :. (4 :: Int) :. (1 :: Int))) ps
->   return $ [ (zip oxs oys)
->            , (zip jxs jys)
->            , (zip sxs sys)
->            , (zip uxs uys)
->            , (zip nxs nys)
->            , (zip pxs pys)
->            ]
+>       xxs = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (0 :: Int))) ps)
+>                         [5,0,1,2,3,4]
+>       xys = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (1 :: Int))) ps)
+>                         [5,0,1,2,3,4]
+>   return $ zipWith zip xxs xys
 
 > main :: IO ()
 > main = do
->   rsVs <- stepN 30000 gConstAu 100 mosss qosss posss
+>   rsVs <- stepN 60000 gConstAu 100 mosss qosss posss
 >   putStrLn $ show rsVs
 
 > main'' :: IO ()
@@ -918,7 +920,7 @@ dia' = test tickSize [ (cellColour0, zipWith (-) (outerPlanets!!0) (outerPlanets
                      , (cellColour2, zipWith (-) (outerPlanets!!2) (outerPlanets!!0))
                      , (cellColour1, zipWith (-) (outerPlanets!!3) (outerPlanets!!0))
                      , (cellColour2, zipWith (-) (outerPlanets!!4) (outerPlanets!!0))
-                     , (cellColour3, zipWith (-) (outerPlanets!!5) (outerPlanets!!0))
+                     , (cellColour1, zipWith (-) (outerPlanets!!5) (outerPlanets!!0))
                      ]
 
 dia = dia'
