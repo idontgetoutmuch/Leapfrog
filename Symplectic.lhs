@@ -462,8 +462,8 @@ $$
 > type ArrayY = UArray F L Dim1
 
 > type PositionY   = VecList N3 Double
-> type SpeedY      = VecList N3 Double
-> type VelocitiesY = ArrayY SpeedY
+> type MomentumY      = VecList N3 Double
+> type MomentaY = ArrayY MomentumY
 > type PositionsY  = ArrayY PositionY
 > 
 > type MassesY = ArrayY Mass
@@ -471,11 +471,11 @@ $$
 > type ForceY = VecList N3 Double
 > type ForcesY = ArrayY ForceY
 
-> stepPositionY :: Double -> PositionsY -> MassesY -> VelocitiesY -> IO ()
-> stepPositionY h ps ms vs = loadS fill (dzip3 upd ps ms vs) ps
+> stepPositionY :: Double -> PositionsY -> MassesY -> MomentaY -> IO ()
+> stepPositionY h qs ms vs = loadS fill (dzip3 upd qs ms vs) qs
 >   where
->     upd :: PositionY -> Mass -> SpeedY -> PositionY
->     upd pos mass speed = V.zipWith (+) pos (V.map (* (h / mass)) speed)
+>     upd :: PositionY -> Mass -> MomentumY -> PositionY
+>     upd q m p = V.zipWith (+) q (V.map (* (h / m)) p)
 
 > stepMomentumP :: forall a b c m . ( Monad m
 >                  , Source a Double
@@ -517,7 +517,7 @@ $$
 >                  Double ->
 >                  PositionsY ->
 >                  MassesY ->
->                  VelocitiesY ->
+>                  MomentaY ->
 >                  IO ()
 > stepMomentumY gConst h qs ms ps = do
 >   fs :: ForcesY <- Y.new nBodies
@@ -558,6 +558,10 @@ $$
 >   newPs <- stepMomentumP gConst h qs ms ps
 >   newQs <- stepPositionP h qs ms newPs
 >   return (newQs, newPs)
+
+> stepOnceY gConst h ms qs ps = do
+>   stepMomentumY gConst h qs ms ps
+>   stepPositionY h qs ms ps
 
 > -- FIXME
 > repDim2to3Outer a = extend (Any :. spaceDim) a
@@ -869,6 +873,7 @@ The Outer Solar System
 >          ]
 >     n = length xs
 >
+> qosss :: Array U DIM2 Double
 > qosss = fromListUnboxed (Z :. n :. spaceDim) xs
 >   where
 >     xs = [  -3.5023653
@@ -935,8 +940,8 @@ The Outer Solar System
 >                         [5,0,1,2,3,4]
 >   return $ zipWith zip xxs xys
 
-> main :: IO ()
-> main = do
+> main''' :: IO ()
+> main''' = do
 >   rsVs <- stepN 60000 gConstAu 100 mosss qosss posss
 >   putStrLn $ show rsVs
 
@@ -979,6 +984,32 @@ dia = dia'
 
 Performance
 -----------
+
+
+> repaToYarr :: Array U DIM2 Double -> IO PositionsY
+> repaToYarr osss = YIO.fromList nBodies $ Prelude.map foo [0 .. nBodies - 1]
+>   where
+>     foo :: Int -> PositionY
+>     foo i = (\[x, y, z] -> V.vl_3 x y z) $
+>             toList $
+>             slice osss (Any :. i :. All)
+
+> main :: IO ()
+> main = do
+>   putStrLn $ show posss
+>   oneStepRepa <- stepOnceP gConstAu 100 mosss qosss posss
+>   putStrLn $ show $ snd oneStepRepa
+>   
+>   mosssYarr :: MassesY <- YIO.fromList nBodies $ toList mosss
+>   qosssYarr <- repaToYarr qosss
+>   posssYarr <- repaToYarr posss
+> 
+>   stepMomentumY gConstAu 100 qosssYarr mosssYarr posssYarr
+>   speedList <- YIO.toList posssYarr
+>   putStrLn $ show speedList
+
+>                
+>   putStrLn "Hello"
 
 > nSteps = 36 -- 36 * 12
 
