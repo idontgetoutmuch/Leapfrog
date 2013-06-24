@@ -119,13 +119,13 @@ $$
 > import Text.Printf
 
 > import qualified Data.Yarr as Y
-> import Data.Yarr (loadS, dzip2, dzip3, F, L)
+> import           Data.Yarr (loadS, dzip2, dzip3, F, L)
 > import qualified Data.Yarr.Repr.Delayed as YD
-> import Data.Yarr.Repr.Delayed (UArray)
+> import           Data.Yarr.Repr.Delayed (UArray)
 > import qualified Data.Yarr.Shape as YS
-> import Data.Yarr.Shape (fill, Dim1)
+> import           Data.Yarr.Shape (fill, Dim1)
 > import qualified Data.Yarr.Utils.FixedVector as V
-> import Data.Yarr.Utils.FixedVector (VecList, N3)
+> import           Data.Yarr.Utils.FixedVector (VecList, N3)
 > import qualified Data.Yarr.IO.List as YIO
 
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
@@ -468,6 +468,9 @@ $$
 > 
 > type MassesY = ArrayY Mass
 
+> type ForceY = VecList N3 Double
+> type ForcesY = ArrayY ForceY
+
 > stepPositionY :: Double -> PositionsY -> MassesY -> VelocitiesY -> IO ()
 > stepPositionY h ps ms vs = loadS fill (dzip3 upd ps ms vs) ps
 >   where
@@ -504,6 +507,41 @@ $$
 >     Z :.i :. j :. k = extent fss
 >     dt2             = extend (Any :. i :. k) $ fromListUnboxed Z [h]
 >     ms2             = extend (Any :. k) ms
+
+> vZero :: VecList N3 Double
+> vZero = V.replicate 0
+
+> nBodies = let (Z :. i) = extent mosss in i
+
+> stepMomentumY :: Double ->
+>                  Double ->
+>                  PositionsY ->
+>                  MassesY ->
+>                  VelocitiesY ->
+>                  IO ()
+> stepMomentumY gConst h qs ms ps = do
+>   fs :: ForcesY <- Y.new nBodies
+>   let forceBetween :: Int -> PositionY -> Mass -> Int -> IO ForceY
+>       forceBetween i pos1 mass1 j
+>         | i == j = return vZero
+>         | otherwise = do
+>           pos2 <- ps `Y.index` j
+>           mass2 <- ms `Y.index` j
+>           let deltas = V.zipWith (-) pos1 pos2
+>               dist2  = V.sum $ V.map (^ 2) deltas
+>               a = 1.0 / dist2
+>               b = (negate gConst) * mass1 * mass2 * a * (sqrt a)
+>           return $ V.map (* b) deltas
+>       forceAdd :: Int -> Int -> ForceY -> IO ()
+>       forceAdd i _ f = do
+>         f0 <- fs `Y.index` i
+>         Y.write fs i (V.zipWith (+) f0 f)
+>       force i pos = do
+>         mass <- ms `Y.index` i
+>         fill (forceBetween i pos mass) (forceAdd i) 0 nBodies
+>       upd momentum force =
+>         V.zipWith (+) momentum (V.map (\f -> f * dt) force)
+>   loadS fill (dzip2 upd ps fs) ps
 
 > stepOnceP :: ( Monad m
 >              , Source a Double
