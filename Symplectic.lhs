@@ -525,7 +525,7 @@ $$
 >       forceBetween i pos1 mass1 j
 >         | i == j = return vZero
 >         | otherwise = do
->           pos2 <- ps `Y.index` j
+>           pos2 <- qs `Y.index` j
 >           mass2 <- ms `Y.index` j
 >           let deltas = V.zipWith (-) pos1 pos2
 >               dist2  = V.sum $ V.map (^ 2) deltas
