@@ -540,7 +540,8 @@ $$
 >         mass <- ms `Y.index` i
 >         fill (forceBetween i pos mass) (forceAdd i) 0 nBodies
 >       upd momentum force =
->         V.zipWith (+) momentum (V.map (\f -> f * dt) force)
+>         V.zipWith (+) momentum (V.map (\f -> f * h) force)
+>   fill (Y.index qs) force 0 nBodies
 >   loadS fill (dzip2 upd ps fs) ps
 
 > stepOnceP :: ( Monad m
@@ -1004,12 +1005,9 @@ Performance
 >   qosssYarr <- repaToYarr qosss
 >   posssYarr <- repaToYarr posss
 > 
->   stepMomentumY gConstAu 100 qosssYarr mosssYarr posssYarr
+>   stepOnceY gConstAu 100 mosssYarr qosssYarr posssYarr
 >   speedList <- YIO.toList posssYarr
 >   putStrLn $ show speedList
-
->                
->   putStrLn "Hello"
 
 > nSteps = 36 -- 36 * 12
 
