@@ -117,6 +117,7 @@ $$
 > import Control.Monad
 > import Control.Monad.Identity
 > import Text.Printf
+> import qualified Data.List as L
 
 > import qualified Data.Yarr as Y
 > import           Data.Yarr (loadS, dzip2, dzip3, F, L)
@@ -506,7 +507,6 @@ $$
 >     fss = is *^ preFs
 >     Z :.i :. j :. k = extent fss
 >     dt2             = extend (Any :. i :. k) $ fromListUnboxed Z [h]
->     ms2             = extend (Any :. k) ms
 
 > vZero :: VecList N3 Double
 > vZero = V.replicate 0
@@ -521,8 +521,7 @@ $$
 >                  IO ()
 > stepMomentumY gConst h qs ms ps = do
 >   fs :: ForcesY <- Y.new nBodies
->   let forceBetween :: Int -> PositionY -> Mass -> Int -> IO ForceY
->       forceBetween i pos1 mass1 j
+>   let forceBetween i pos1 mass1 j
 >         | i == j = return vZero
 >         | otherwise = do
 >           pos2 <- qs `Y.index` j
@@ -995,21 +994,107 @@ Performance
 >             toList $
 >             slice osss (Any :. i :. All)
 
-> main :: IO ()
-> main = do
->   putStrLn $ show posss
->   oneStepRepa <- stepOnceP gConstAu 100 mosss qosss posss
->   putStrLn $ show $ snd oneStepRepa
->   
+> twoStepsQ :: [V.VecList N3 Double]
+> twoStepsQ = [V.VecList [-2.1844529401275294,-4.418082078565206,-1.8405658606612776],V.VecList [9.323368020382693,-2.050775648489477,-1.2480591327512804],V.VecList [9.008662745961393,-15.996952319547466,-7.1336299611318505],V.VecList [12.044882004644098,-25.492112585226486,-10.734094594787692],V.VecList [-14.980094836043484,-25.55547018349025,-3.462160073752211],V.VecList [-1.5261242385473733e-4,-2.230171662863744e-4,-9.221954445104506e-5]]
+
+> twoStepsP :: [V.VecList N3 Double]
+> twoStepsP = [V.VecList [6.558736175978927e-6,-2.482829745380363e-6,-1.2240623198096153e-6],V.VecList [3.1081735919834476e-7,1.432783246461317e-6,5.783877971543392e-7],V.VecList [1.519863313258382e-7,6.546615601247635e-8,2.6519047685602635e-8],V.VecList [1.4829817355620581e-7,6.216597507571071e-8,2.1749520875359458e-8],V.VecList [2.155187945130244e-11,-1.2694991859429335e-11,-1.0444231306670055e-11],V.VecList [-9.860432744612683e-7,-1.5158660966942225e-6,-6.280653910114643e-7]]
+
+> mainBroken :: IO ()
+> mainBroken = do
+>   rsVs2 <- stepN 2 gConstAu 100 mosss qosss posss
+>   rsVs3 <- stepN 3 gConstAu 100 mosss qosss posss
+> 
 >   mosssYarr :: MassesY <- YIO.fromList nBodies $ toList mosss
 >   qosssYarr <- repaToYarr qosss
 >   posssYarr <- repaToYarr posss
 > 
 >   stepOnceY gConstAu 100 mosssYarr qosssYarr posssYarr
+>   stepOnceY gConstAu 100 mosssYarr qosssYarr posssYarr
 >   speedList <- YIO.toList posssYarr
+>   posList <- YIO.toList qosssYarr
+>   putStrLn $ show posList
 >   putStrLn $ show speedList
+> 
+>   rsYarr <- repaToYarr $ fst rsVs2
+>   rsList <-YIO.toList rsYarr
+>   putStrLn $ show rsList
+>   vsYarr <- repaToYarr $ snd rsVs2
+>   vsList <-YIO.toList vsYarr
+>   putStrLn $ show vsList
+>   putStrLn $ show $ zipWith (V.zipWith (-)) rsList posList
+>   putStrLn $ show $ zipWith (V.zipWith (-)) vsList speedList
+> 
+>   qosssYarr2 :: PositionsY <- YIO.fromList nBodies twoStepsQ
+>   posssYarr2 :: MomentaY   <- YIO.fromList nBodies twoStepsP
+>   stepOnceY gConstAu 100 mosssYarr qosssYarr2 posssYarr2
+>   speedList2 <- YIO.toList posssYarr2
+>   posList2 <- YIO.toList qosssYarr2
+>   putStrLn $ show posList2
+>   putStrLn $ show speedList2
+>
+>   rsYarr3 <- repaToYarr $ fst rsVs3
+>   rsList3 <-YIO.toList rsYarr3
+>   putStrLn $ show rsList3
+>   vsYarr3 <- repaToYarr $ snd rsVs3
+>   vsList3 <-YIO.toList vsYarr3
+>   putStrLn $ show vsList3
+>   putStrLn $ show $ zipWith (V.zipWith (-)) rsList3 posList2
+>   putStrLn $ show $ zipWith (V.zipWith (-)) vsList3 speedList2
+>
+>   stepOnceY gConstAu 100 mosssYarr qosssYarr posssYarr
+>   speedList4 <- YIO.toList posssYarr
+>   posList4 <- YIO.toList qosssYarr
+>   putStrLn $ show posList4
+>   putStrLn $ show speedList4
 
-> nSteps = 36 -- 36 * 12
+
+> main :: IO ()
+> main = do
+>   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
+>   ps <- repaToYarr posss
+>   qs <- repaToYarr qosss
+>   psPreList <- YIO.toList ps
+>   qsPreList <- YIO.toList qs
+>   let qsRepa = fromListUnboxed (Z :. nBodies :. spaceDim) $
+>                concat $
+>                L.transpose $
+>                Prelude.map (\n -> Prelude.map (V.!n) qsPreList) [0..2]
+>   let psRepa = fromListUnboxed (Z :. nBodies :. spaceDim) $
+>                concat $
+>                L.transpose $
+>                Prelude.map (\n -> Prelude.map (V.!n) psPreList) [0..2]
+>   putStrLn "Original ps"
+>   putStrLn $ show psPreList
+>   putStrLn $ show psRepa
+>   putStrLn "Original qs"
+>   putStrLn $ show qsPreList
+>   putStrLn $ show qsRepa
+>   putStrLn "Step once"
+>   foo <- stepMomentumP gConstAu 100 qsRepa mosss psRepa
+>   putStrLn $ show foo
+>   bar <- hamiltonianP gConstAu mosss qsRepa psRepa
+>   putStrLn $ show bar
+>   rsVs <- stepN' 10 gConstAu 100 mosss qosss posss
+>   h <- zipWithM (hamiltonianP gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
+>   putStrLn $ show h
+>   putStrLn $ show qosss
+>   putStrLn $ show qsRepa
+>   newQsPs <- stepN nSteps gConstAu 100
+>              mosss
+>              qsRepa
+>              psRepa
+>   putStrLn "New qs ps repa"
+>   putStrLn $ show newQsPs
+>   fill (\_ -> return ()) (\_ _ -> stepOnceY gConstAu 100 ms qs ps) (0 :: Int) nSteps
+>   putStrLn "New qs ps yarr"
+>   psList <- YIO.toList ps
+>   putStrLn $ show psList
+>   qsList <- YIO.toList qs
+>   putStrLn $ show qsList
+
+
+> nSteps = 2 -- 36 -- 36 * 12
 
 > main' :: IO ()
 > main' = do
