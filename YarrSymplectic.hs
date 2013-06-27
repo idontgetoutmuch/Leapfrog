@@ -19,6 +19,7 @@ import qualified Data.Yarr.IO.List as YIO
 import Data.Array.Repa hiding ((++), zipWith, Array)
 import qualified Data.Array.Repa as Repa
 
+import Control.Monad
 import qualified Data.List as L
 
 type Distance = VecList N3 Double
@@ -243,6 +244,22 @@ stepOnceP gConst h ms qs ps = do
   newQs <- stepPositionP h qs ms newPs
   return (newQs, newPs)
 
+stepN :: (Monad m, Source b Double) =>
+         Int
+         -> Double
+         -> Double
+         -> Repa.Array b DIM1 Double
+         -> Repa.Array U DIM2 Double
+         -> Repa.Array U DIM2 Double
+         -> m (Repa.Array U DIM2 Double, Repa.Array U DIM2 Double)
+stepN n gConst dt masses = curry updaterMulti
+  where
+    updaterMulti = foldr (>=>) return updaters
+    updaters = replicate n (uncurry (stepOnceP gConst dt masses))
+
+nSteps :: Int
+nSteps = 3
+
 main :: IO ()
 main = do
   ms <- initMs
@@ -264,13 +281,13 @@ main = do
   putStrLn "Original qs"
   putStrLn $ show qsPreList
   putStrLn $ show qsRepa
-  newQsPs <- stepOnceP gConst dt
+  newQsPs <- stepN nSteps gConst dt
              (fromListUnboxed (Z :. nBodies) initMassesL)
              qsRepa
              psRepa
   putStrLn "New qs ps repa"
   putStrLn $ show newQsPs
-  stepOnceY gConst dt ms qs ps
+  fill (\_ -> return ()) (\_ _ -> stepOnceY gConst dt ms qs ps) 0 nSteps
   putStrLn "New qs ps yarr"
   psList <- YIO.toList ps
   putStrLn $ show psList
