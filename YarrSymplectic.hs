@@ -129,6 +129,11 @@ stepMomentumY gConst h qs ms ps = do
   fill (Y.index qs) force 0 nBodies
   loadS fill (dzip2 upd ps fs) ps
 
+stepOnceY :: Double -> Double -> Masses -> Positions -> Momenta -> IO ()
+stepOnceY gConst h ms qs ps = do
+  stepMomentumY gConst h qs ms ps
+  stepPositionY h qs ms ps
+
 stepPositionP :: forall a b c m . ( Monad m
                  , Source a Double
                  , Source b Double
@@ -222,6 +227,22 @@ replicateRows :: Source a Double =>
 replicateRows a = extend (Any :. i :. All) a
   where (Z :. i :. _j) = extent a
 
+stepOnceP :: ( Monad m
+             , Source a Double
+             , Source b Double
+             , Source c Double
+             ) =>
+             Double ->
+             Double ->
+             Repa.Array b DIM1 Double ->
+             Repa.Array a DIM2 Double ->
+             Repa.Array c DIM2 Double ->
+             m (Repa.Array U DIM2 Double, Repa.Array U DIM2 Double)
+stepOnceP gConst h ms qs ps = do
+  newPs <- stepMomentumP gConst h qs ms ps
+  newQs <- stepPositionP h qs ms newPs
+  return (newQs, newPs)
+
 main :: IO ()
 main = do
   ms <- initMs
@@ -243,13 +264,15 @@ main = do
   putStrLn "Original qs"
   putStrLn $ show qsPreList
   putStrLn $ show qsRepa
-  newP <- stepMomentumP gConst dt
-          qsRepa
-          (fromListUnboxed (Z :. nBodies) initMassesL)
-          psRepa
-  putStrLn "New ps repa"
-  putStrLn $ show newP
-  stepMomentumY gConst dt qs ms ps
-  putStrLn "New ps yarr"
-  baz <- YIO.toList ps
-  putStrLn $ show baz
+  newQsPs <- stepOnceP gConst dt
+             (fromListUnboxed (Z :. nBodies) initMassesL)
+             qsRepa
+             psRepa
+  putStrLn "New qs ps repa"
+  putStrLn $ show newQsPs
+  stepOnceY gConst dt ms qs ps
+  putStrLn "New qs ps yarr"
+  psList <- YIO.toList ps
+  putStrLn $ show psList
+  qsList <- YIO.toList qs
+  putStrLn $ show qsList
