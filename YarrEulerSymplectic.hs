@@ -10,12 +10,9 @@ module Main(main) where
 
 import qualified Initial as I
 
-import qualified Data.Yarr as Y
-import           Data.Yarr (loadS, dzip2, dzip3, F, L)
-import           Data.Yarr.Repr.Delayed (UArray)
-import           Data.Yarr.Shape (fill, Dim1)
+import           Data.Yarr
+import           Data.Yarr.Shape
 import qualified Data.Yarr.Utils.FixedVector as V
-import           Data.Yarr.Utils.FixedVector (VecList, N3)
 import qualified Data.Yarr.IO.List as YIO
 
 type Distance = VecList N3 Double
@@ -56,12 +53,12 @@ stepMomentum :: Double ->
                  Momenta ->
                  IO ()
 stepMomentum gConst h qs ms ps = do
-  fs :: Forces <- Y.new I.nBodiesTwoPlanets
+  fs :: Forces <- new I.nBodiesTwoPlanets
   let forceBetween i pos1 mass1 j
         | i == j = return vZero
         | otherwise = do
-          pos2 <- qs `Y.index` j
-          mass2 <- ms `Y.index` j
+          pos2 <- qs `index` j
+          mass2 <- ms `index` j
           let deltas = V.zipWith (-) pos1 pos2
               dist2  = V.sum $ V.map (^2) deltas
               a = 1.0 / dist2
@@ -69,20 +66,37 @@ stepMomentum gConst h qs ms ps = do
           return $ V.map (* b) deltas
       forceAdd :: Int -> Int -> Force -> IO ()
       forceAdd i _ f = do
-        f0 <- fs `Y.index` i
-        Y.write fs i (V.zipWith (+) f0 f)
+        f0 <- fs `index` i
+        write fs i (V.zipWith (+) f0 f)
       force i pos = do
-        mass <- ms `Y.index` i
+        mass <- ms `index` i
         fill (forceBetween i pos mass) (forceAdd i) 0 I.nBodiesTwoPlanets
       upd momentum force =
         V.zipWith (+) momentum (V.map (\f -> f * h) force)
-  fill (Y.index qs) force 0 I.nBodiesTwoPlanets
+  fill (index qs) force 0 I.nBodiesTwoPlanets
   loadS fill (dzip2 upd ps fs) ps
 
 stepOnce :: Double -> Double -> Masses -> Positions -> Momenta -> IO ()
 stepOnce gConst h ms qs ps = do
   stepMomentum gConst h qs ms ps
   stepPosition h qs ms ps
+
+hamiltonianP :: Double -> Masses -> Momenta -> Positions -> IO Double
+hamiltonianP gConst ms qs ps = do
+  let preKes = dmap V.sum $ dzip2 (V.zipWith (*)) ps ps
+      ke     = dzip2 (/) preKes ms
+  undefined
+--   preKes <- sumP $ ps *^ ps
+--   ke     <- sumP $ preKes /^ ms
+--
+--   ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
+--   let ds   = Repa.map sqrt ds2
+--       is   = prodPairsMasses ms
+--       pess = zeroDiags $ Repa.map (* (negate gConst)) $ is /^ ds
+--   pes <- sumP pess
+--   pe  <- sumP pes
+--   te :: Array U DIM0 Double <- computeP $ ke +^ pe
+--   return $ head $ toList $ Repa.map (* 0.5) te
 
 main :: IO ()
 main = do
