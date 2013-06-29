@@ -11,7 +11,8 @@ module Main(main) where
 import qualified Initial as I
 
 import           Data.Yarr
-import           Data.Yarr.Shape
+import           Data.Yarr.Walk
+import qualified Data.Yarr.Shape as S
 import qualified Data.Yarr.Utils.FixedVector as V
 import qualified Data.Yarr.IO.List as YIO
 
@@ -42,7 +43,7 @@ vZero :: VecList N3 Double
 vZero = V.replicate 0
 
 stepPosition :: Double -> Positions -> Masses -> Momenta -> IO ()
-stepPosition h qs ms vs = loadS fill (dzip3 upd qs ms vs) qs
+stepPosition h qs ms vs = loadS S.fill (dzip3 upd qs ms vs) qs
   where
     upd q m p = V.zipWith (+) q (V.map (* (h / m)) p)
 
@@ -70,22 +71,24 @@ stepMomentum gConst h qs ms ps = do
         write fs i (V.zipWith (+) f0 f)
       force i pos = do
         mass <- ms `index` i
-        fill (forceBetween i pos mass) (forceAdd i) 0 I.nBodiesTwoPlanets
+        S.fill (forceBetween i pos mass) (forceAdd i) 0 I.nBodiesTwoPlanets
       upd momentum force =
         V.zipWith (+) momentum (V.map (\f -> f * h) force)
-  fill (index qs) force 0 I.nBodiesTwoPlanets
-  loadS fill (dzip2 upd ps fs) ps
+  S.fill (index qs) force 0 I.nBodiesTwoPlanets
+  loadS S.fill (dzip2 upd ps fs) ps
 
 stepOnce :: Double -> Double -> Masses -> Positions -> Momenta -> IO ()
 stepOnce gConst h ms qs ps = do
   stepMomentum gConst h qs ms ps
   stepPosition h qs ms ps
 
-hamiltonianP :: Double -> Masses -> Momenta -> Positions -> IO Double
+hamiltonianP :: Double -> Masses -> Positions -> Momenta-> IO Double
 hamiltonianP gConst ms qs ps = do
   let preKes = dmap V.sum $ dzip2 (V.zipWith (*)) ps ps
-      ke     = dzip2 (/) preKes ms
-  undefined
+      kes     = dzip2 (/) preKes (delay ms)
+  ke <- walk (reduceL S.foldl (+)) (return 0) kes
+  return ke
+  
 --   preKes <- sumP $ ps *^ ps
 --   ke     <- sumP $ preKes /^ ms
 --
@@ -103,11 +106,15 @@ main = do
   ms <- masses
   ps <- initPs
   qs <- initQs
-  fill (\_ -> return ())
-       (\_ _ -> stepOnce I.gConst I.stepTwoPlanets ms qs ps)
-       0 I.nStepsTwoPlanets
+  hPre <- hamiltonianP I.gConst ms qs ps
+  putStrLn $ show hPre
+  S.fill (\_ -> return ())
+         (\_ _ -> stepOnce I.gConst I.stepTwoPlanets ms qs ps)
+         0 I.nStepsTwoPlanets
   putStrLn "New qs ps yarr"
   psList <- YIO.toList ps
   putStrLn $ show psList
   qsList <- YIO.toList qs
   putStrLn $ show qsList
+  hPost <- hamiltonianP I.gConst ms qs ps
+  putStrLn $ show hPost
