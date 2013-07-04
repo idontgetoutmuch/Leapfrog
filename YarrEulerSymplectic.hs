@@ -6,7 +6,7 @@
 {-# LANGUAGE FlexibleContexts             #-}
 {-# LANGUAGE ScopedTypeVariables          #-}
 
-module Main(main) where
+module Main (main) where
 
 import qualified Initial as I
 
@@ -82,34 +82,34 @@ stepOnce gConst h ms qs ps = do
   stepMomentum gConst h qs ms ps
   stepPosition h qs ms ps
 
--- potentialEnergy :: Double -> Masses -> Positions -> IO (Array Double)
--- potentialEnergy gConst ms qs = do
---   pes :: Array Double <- new I.nBodiesTwoPlanets
---   let peOnePairParticles :: Int ->
---                             Int ->
---                             IO Double
---       peOnePairParticles i j
---         | i == j = return 0.0
---         | otherwise = do
---           q1 <- qs `index` i
---           m1 <- ms `index` i
---           q2 <- qs `index` j
---           m2 <- ms `index` j
---           let qDiffs = V.zipWith (-) q1 q2
---               dist2  = V.sum $ V.map (^2) qDiffs
---               a      = 1.0 / dist2
---               b      = (negate gConst) * m1 * m2 * (sqrt a)
---           return $ V.sum $ V.map (*b) qDiffs
---       peAdd i _ pe = do
---         peDelta <- pes `index` i
---         write pes i (pe + peDelta)
---       peFn i _ = do
---         S.fill (peOnePairParticles i) (peAdd i) 0 I.nBodiesTwoPlanets
---   S.fill (index qs) peFn 0 I.nBodiesTwoPlanets
---   return pes
+potentialEnergy :: Double -> Masses -> Positions -> IO (Array Double)
+potentialEnergy gConst ms qs = do
+  pes :: Array Double <- new I.nBodiesTwoPlanets
+  let peOnePairParticles :: Int ->
+                            Int ->
+                            IO Double
+      peOnePairParticles i j
+        | i == j = return 0.0
+        | otherwise = do
+          q1 <- qs `index` i
+          m1 <- ms `index` i
+          q2 <- qs `index` j
+          m2 <- ms `index` j
+          let qDiffs = V.zipWith (-) q1 q2
+              dist2  = V.sum $ V.map (^2) qDiffs
+              a      = 1.0 / dist2
+              b      = (negate gConst) * m1 * m2 * (sqrt a)
+          return b
+      peAdd i _ pe = do
+        peDelta <- pes `index` i
+        write pes i (pe + peDelta)
+      peFn i _ = do
+        S.fill (peOnePairParticles i) (peAdd i) 0 I.nBodiesTwoPlanets
+  S.fill (index qs) peFn 0 I.nBodiesTwoPlanets
+  return pes
 
-hamiltonianP :: Double -> Masses -> Positions -> Momenta-> IO Double
-hamiltonianP gConst ms qs ps = do
+hamiltonian :: Double -> Masses -> Positions -> Momenta-> IO Double
+hamiltonian gConst ms qs ps = do
   let preKes = dmap V.sum $ dzip2 (V.zipWith (*)) ps ps
       kes     = dzip2 (/) preKes (delay ms)
   ke <- walk (reduceL S.foldl (+)) (return 0) kes
@@ -128,7 +128,8 @@ hamiltonianP gConst ms qs ps = do
               dist2  = V.sum $ V.map (^2) qDiffs
               a      = 1.0 / dist2
               b      = (negate gConst) * m1 * m2 * (sqrt a)
-          return $ V.sum $ V.map (*b) qDiffs
+              c      =  V.sum $ V.map (*b) qDiffs
+          return c
       peAdd i _ pe = do
         peDelta <- pes `index` i
         write pes i (pe + peDelta)
@@ -143,15 +144,6 @@ main = do
   ms <- masses
   ps <- initPs
   qs <- initQs
-  hPre <- hamiltonianP I.gConst ms qs ps
-  putStrLn $ show hPre
-  S.fill (\_ -> return ())
-         (\_ _ -> stepOnce I.gConst I.stepTwoPlanets ms qs ps)
-         0 I.nStepsTwoPlanets
-  putStrLn "New qs ps yarr"
-  psList <- YIO.toList ps
-  putStrLn $ show psList
-  qsList <- YIO.toList qs
-  putStrLn $ show qsList
-  hPost <- hamiltonianP I.gConst ms qs ps
-  putStrLn $ show hPost
+  potEnPre <- potentialEnergy I.gConst ms qs
+  potEnPreList <- YIO.toList potEnPre
+  putStrLn $ show potEnPreList
