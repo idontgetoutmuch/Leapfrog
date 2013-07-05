@@ -947,7 +947,7 @@ The Outer Solar System
 
 > main'' :: IO ()
 > main'' = do
->   rsVs <- stepN' 8000 gConstAu 100 mosss qosss posss
+>   rsVs <- stepN' 40 gConstAu 100 mosss qosss posss
 >   h <- zipWithM (hamiltonianP gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
 >   -- putStrLn $ show $ h
 >   putStrLn $ show $ minimum h
@@ -1048,6 +1048,22 @@ Performance
 >   putStrLn $ show posList4
 >   putStrLn $ show speedList4
 
+> nSteps = 200 -- 36 -- 36 * 12
+
+> mainNew :: IO ()
+> mainNew = do
+>   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
+>   ps <- repaToYarr posss
+>   qs <- repaToYarr qosss
+>   fill (\_ -> return ()) (\_ _ -> stepOnceY gConstAu 100 ms qs ps) (0 :: Int) nSteps
+>   putStrLn "New qs ps yarr"
+>   psList <- YIO.toList ps
+>   putStrLn $ show psList
+>   qsList <- YIO.toList qs
+>   putStrLn $ show qsList
+>   -- h <- zipWithM (hamiltonianP gConstAu mosss) undefined undefined -- qs ps
+>   -- putStrLn $ show h
+
 
 > main :: IO ()
 > main = do
@@ -1093,8 +1109,6 @@ Performance
 >   qsList <- YIO.toList qs
 >   putStrLn $ show qsList
 
-
-> nSteps = 2 -- 36 -- 36 * 12
 
 > main' :: IO ()
 > main' = do
