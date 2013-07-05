@@ -105,30 +105,27 @@ zeroDiags' x = traverse x id f
     f _ (Z :. i :. j :. k) | i == j    = 0.0
                            | otherwise = x!(Z :. i :. j :. k)
 
-potentialEnergy :: Double -> Masses -> Positions -> IO (Array U DIM1 Double)
+potentialEnergy :: Double -> Masses -> Positions -> IO Double
 potentialEnergy gConst ms qs = do
-  putStrLn $ show qs
-  ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
-  let ds   = Repa.map sqrt ds2
-      is   = prodPairsMasses ms
-      pess = zeroDiags $ Repa.map (* (negate gConst)) $ is /^ ds
-  dsU :: Array U DIM2 Double <- computeP ds
-  putStrLn $ show dsU
-  sumP pess
-
-hamiltonian :: Double -> Masses -> Momenta -> Positions -> IO Double
-hamiltonian gConst ms qs ps = do
-  preKes <- sumP $ ps *^ ps
-  ke     <- sumP $ preKes /^ ms
-
   ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
   let ds   = Repa.map sqrt ds2
       is   = prodPairsMasses ms
       pess = zeroDiags $ Repa.map (* (negate gConst)) $ is /^ ds
   pes <- sumP pess
   pe  <- sumP pes
-  te :: Array U DIM0 Double <- computeP $ ke +^ pe
-  return $ head $ toList $ Repa.map (* 0.5) te
+  return $ head $ toList $ Repa.map (* 0.5) pe
+
+kineticEnergy :: Masses -> Momenta -> IO Double
+kineticEnergy ms ps = do
+  preKes <- sumP $ ps *^ ps
+  ke     <- sumP $ preKes /^ ms
+  return $ head $ toList $ Repa.map (* 0.5) ke
+
+hamiltonian :: Double -> Masses -> Momenta -> Positions -> IO Double
+hamiltonian gConst ms qs ps = do
+  ke <- kineticEnergy ms ps
+  pe <- potentialEnergy gConst ms qs
+  return $ ke + pe
 
 repDim1To2Outer :: Source a Double =>
                    Array a DIM1 Double ->
@@ -186,11 +183,8 @@ stepN n gConst dt masses = curry updaterMulti
 
 main :: IO ()
 main = do
-  potEnPre <- potentialEnergy I.gConst masses initQs
-  putStrLn $ show potEnPre
   hPre <- hamiltonian I.gConst masses initQs initPs
   putStrLn $ show hPre
-  (newQs, newPs) <- stepN 100 I.gConst I.stepTwoPlanets masses initQs initPs
+  (newQs, newPs) <- stepN I.nStepsTwoPlanets I.gConst I.stepTwoPlanets masses initQs initPs
   hPost <- hamiltonian I.gConst masses newQs newPs
   putStrLn $ show hPost
-  putStrLn "Hello world"

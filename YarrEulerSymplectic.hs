@@ -55,6 +55,7 @@ stepMomentum :: Double ->
                  IO ()
 stepMomentum gConst h qs ms ps = do
   fs :: Forces <- new I.nBodiesTwoPlanets
+  S.fill (\_ -> return vZero) (write fs) 0 I.nBodiesTwoPlanets                  
   let forceBetween i pos1 mass1 j
         | i == j = return vZero
         | otherwise = do
@@ -85,6 +86,7 @@ stepOnce gConst h ms qs ps = do
 potentialEnergy :: Double -> Masses -> Positions -> IO (Array Double)
 potentialEnergy gConst ms qs = do
   pes :: Array Double <- new I.nBodiesTwoPlanets
+  S.fill (\_ -> return 0.0) (write pes) 0 I.nBodiesTwoPlanets
   let peOnePairParticles :: Int ->
                             Int ->
                             IO Double
@@ -98,7 +100,7 @@ potentialEnergy gConst ms qs = do
           let qDiffs = V.zipWith (-) q1 q2
               dist2  = V.sum $ V.map (^2) qDiffs
               a      = 1.0 / dist2
-              b      = (negate gConst) * m1 * m2 * (sqrt a)
+              b      = 0.5 * (negate gConst) * m1 * m2 * (sqrt a)
           return b
       peAdd i _ pe = do
         peDelta <- pes `index` i
@@ -108,35 +110,18 @@ potentialEnergy gConst ms qs = do
   S.fill (index qs) peFn 0 I.nBodiesTwoPlanets
   return pes
 
-hamiltonian :: Double -> Masses -> Positions -> Momenta-> IO Double
-hamiltonian gConst ms qs ps = do
+kineticEnergy :: Masses -> Momenta-> IO Double
+kineticEnergy ms ps = do
   let preKes = dmap V.sum $ dzip2 (V.zipWith (*)) ps ps
       kes     = dzip2 (/) preKes (delay ms)
   ke <- walk (reduceL S.foldl (+)) (return 0) kes
-  pes :: Array Double <- new I.nBodiesTwoPlanets
-  let peOnePairParticles :: Int ->
-                            Int ->
-                            IO Double
-      peOnePairParticles i j
-        | i == j = return 0.0
-        | otherwise = do
-          q1 <- qs `index` i
-          m1 <- ms `index` i
-          q2 <- qs `index` j
-          m2 <- ms `index` j
-          let qDiffs = V.zipWith (-) q1 q2
-              dist2  = V.sum $ V.map (^2) qDiffs
-              a      = 1.0 / dist2
-              b      = (negate gConst) * m1 * m2 * (sqrt a)
-              c      =  V.sum $ V.map (*b) qDiffs
-          return c
-      peAdd i _ pe = do
-        peDelta <- pes `index` i
-        write pes i (pe + peDelta)
-      peFn i _ = do
-        S.fill (peOnePairParticles i) (peAdd i) 0 I.nBodiesTwoPlanets
-  S.fill (index qs) peFn 0 I.nBodiesTwoPlanets
-  pe <- walk (reduceL S.foldl (+)) (return 0) pes
+  return $ 0.5 * ke
+
+hamiltonian :: Double -> Masses -> Positions -> Momenta-> IO Double
+hamiltonian gConst ms qs ps = do
+  ke  <- kineticEnergy ms ps
+  pes <- potentialEnergy gConst ms qs
+  pe  <- walk (reduceL S.foldl (+)) (return 0) pes
   return $ pe + ke
   
 main :: IO ()
@@ -144,6 +129,10 @@ main = do
   ms <- masses
   ps <- initPs
   qs <- initQs
-  potEnPre <- potentialEnergy I.gConst ms qs
-  potEnPreList <- YIO.toList potEnPre
-  putStrLn $ show potEnPreList
+  hPre <- hamiltonian I.gConst ms qs ps
+  putStrLn $ show hPre
+  S.fill (\_ -> return ())
+         (\_ _ -> stepOnce I.gConst I.stepTwoPlanets ms qs ps)
+         0 I.nStepsTwoPlanets
+  hPost <- hamiltonian I.gConst ms qs ps
+  putStrLn $ show hPost
