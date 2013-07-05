@@ -128,6 +128,9 @@ $$
 > import qualified Data.Yarr.Utils.FixedVector as V
 > import           Data.Yarr.Utils.FixedVector (VecList, N3)
 > import qualified Data.Yarr.IO.List as YIO
+> 
+> import qualified Initial as I
+
 
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
@@ -512,7 +515,7 @@ $$
 > vZero = V.replicate 0
 
 > nBodies = let (Z :. i) = extent mosss in i
-
+> 
 > stepMomentumY :: Double ->
 >                  Double ->
 >                  PositionsY ->
@@ -862,71 +865,21 @@ The Outer Solar System
 ----------------------
 
 > mosss :: Array U DIM1 Double
-> mosss = fromListUnboxed (Z :. n) xs
+> mosss = fromListUnboxed (Z :. n) I.massesOuter
 >   where
->     xs = [ 9.54786104043e-4
->          , 2.85583733151e-4
->          , 4.37273164546e-5
->          , 5.17759138449e-5
->          , 1.0 / 1.3e8
->          , 1.00000597682
->          ]
->     n = length xs
+>     n = length I.massesOuter
 >
 > qosss :: Array U DIM2 Double
 > qosss = fromListUnboxed (Z :. n :. spaceDim) xs
 >   where
->     xs = [  -3.5023653
->          ,  -3.8169847
->          ,  -1.5507963
->          ,   9.0755314
->          ,  -3.0458353
->          ,  -1.6483708
->          ,   8.3101420
->          , -16.2901086
->          ,  -7.2521278
->          ,  11.4707666
->          , -25.7294829
->          , -10.8169456
->          , -15.5387357
->          , -25.2225594
->          ,  -3.1902382
->          ,   0.0
->          ,   0.0
->          ,   0.0
->          ]
->     n = length xs `div` spaceDim
+>     xs = concat I.initQsOuter
+>     n  = length xs `div` spaceDim
 > 
 > posss :: Array U DIM2 Double        
-> posss = runIdentity $
->         computeP $
->         vosss *^ ys
+> posss = fromListUnboxed (Z :. n :. spaceDim) xs
 >   where
->     ys = extend (Any :. spaceDim) mosss
-
-> vosss :: Array U DIM2 Double        
-> vosss = fromListUnboxed (Z :. n :. spaceDim) xs
->   where
->     xs = [  0.00565429
->          , -0.00412490
->          , -0.00190589
->          ,  0.00168318
->          ,  0.00483525
->          ,  0.00192462
->          ,  0.00354178
->          ,  0.00137102
->          ,  0.00055029
->          ,  0.00288930
->          ,  0.00114527
->          ,  0.00039677
->          ,  0.00276725
->          , -0.00170702
->          , -0.00136504
->          ,  0.0
->          ,  0.0
->          ,  0.0
->          ]
->     n = length xs `div` spaceDim
+>     xs = concat I.initPsOuter
+>     n  = length xs `div` spaceDim
 
 > sunIndex :: Int
 > sunIndex = let (Z :. i) = extent mosss in i
