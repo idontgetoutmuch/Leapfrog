@@ -868,6 +868,11 @@ The Outer Solar System
 > mosss = fromListUnboxed (Z :. n) I.massesOuter
 >   where
 >     n = length I.massesOuter
+> 
+> mosssY :: IO (UArray F L Dim1 Double)
+> mosssY = YIO.fromList n I.massesOuter
+>   where
+>     n = length I.massesOuter
 >
 > qosss :: Array U DIM2 Double
 > qosss = fromListUnboxed (Z :. n :. spaceDim) xs
@@ -892,27 +897,6 @@ The Outer Solar System
 >       xys = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (1 :: Int))) ps)
 >                         [5,0,1,2,3,4]
 >   return $ zipWith zip xxs xys
-
-> main''' :: IO ()
-> main''' = do
->   rsVs <- stepN 60000 gConstAu 100 mosss qosss posss
->   putStrLn $ show rsVs
-
-> main'' :: IO ()
-> main'' = do
->   rsVs <- stepN' 40 gConstAu 100 mosss qosss posss
->   h <- zipWithM (hamiltonianP gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
->   -- putStrLn $ show $ h
->   putStrLn $ show $ minimum h
->   putStrLn $ show $ maximum h
->   putStrLn $ show $ length outerPlanets
->   let erx nSteps = fst $ (!!nSteps) $ (outerPlanets!!0)
->       ery nSteps = snd $ (!!nSteps) $ (outerPlanets!!0)
->       jrx nSteps = fst $ (!!nSteps) $ (outerPlanets!!1)
->       jry nSteps = snd $ (!!nSteps) $ (outerPlanets!!1)
->   -- mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (erx n) (ery n)) [0 .. nSteps - 1]
->   -- mapM_ (\n -> putStrLn $ printf "%16.10e %16.10e" (jrx n) (jry n)) [0 .. nSteps - 1]
->   putStrLn "Hello"
 
     [ghci]
     take 5 (outerPlanets!!0)
@@ -946,60 +930,6 @@ Performance
 >     foo i = (\[x, y, z] -> V.vl_3 x y z) $
 >             toList $
 >             slice osss (Any :. i :. All)
-
-> twoStepsQ :: [V.VecList N3 Double]
-> twoStepsQ = [V.VecList [-2.1844529401275294,-4.418082078565206,-1.8405658606612776],V.VecList [9.323368020382693,-2.050775648489477,-1.2480591327512804],V.VecList [9.008662745961393,-15.996952319547466,-7.1336299611318505],V.VecList [12.044882004644098,-25.492112585226486,-10.734094594787692],V.VecList [-14.980094836043484,-25.55547018349025,-3.462160073752211],V.VecList [-1.5261242385473733e-4,-2.230171662863744e-4,-9.221954445104506e-5]]
-
-> twoStepsP :: [V.VecList N3 Double]
-> twoStepsP = [V.VecList [6.558736175978927e-6,-2.482829745380363e-6,-1.2240623198096153e-6],V.VecList [3.1081735919834476e-7,1.432783246461317e-6,5.783877971543392e-7],V.VecList [1.519863313258382e-7,6.546615601247635e-8,2.6519047685602635e-8],V.VecList [1.4829817355620581e-7,6.216597507571071e-8,2.1749520875359458e-8],V.VecList [2.155187945130244e-11,-1.2694991859429335e-11,-1.0444231306670055e-11],V.VecList [-9.860432744612683e-7,-1.5158660966942225e-6,-6.280653910114643e-7]]
-
-> mainBroken :: IO ()
-> mainBroken = do
->   rsVs2 <- stepN 2 gConstAu 100 mosss qosss posss
->   rsVs3 <- stepN 3 gConstAu 100 mosss qosss posss
-> 
->   mosssYarr :: MassesY <- YIO.fromList nBodies $ toList mosss
->   qosssYarr <- repaToYarr qosss
->   posssYarr <- repaToYarr posss
-> 
->   stepOnceY gConstAu 100 mosssYarr qosssYarr posssYarr
->   stepOnceY gConstAu 100 mosssYarr qosssYarr posssYarr
->   speedList <- YIO.toList posssYarr
->   posList <- YIO.toList qosssYarr
->   putStrLn $ show posList
->   putStrLn $ show speedList
-> 
->   rsYarr <- repaToYarr $ fst rsVs2
->   rsList <-YIO.toList rsYarr
->   putStrLn $ show rsList
->   vsYarr <- repaToYarr $ snd rsVs2
->   vsList <-YIO.toList vsYarr
->   putStrLn $ show vsList
->   putStrLn $ show $ zipWith (V.zipWith (-)) rsList posList
->   putStrLn $ show $ zipWith (V.zipWith (-)) vsList speedList
-> 
->   qosssYarr2 :: PositionsY <- YIO.fromList nBodies twoStepsQ
->   posssYarr2 :: MomentaY   <- YIO.fromList nBodies twoStepsP
->   stepOnceY gConstAu 100 mosssYarr qosssYarr2 posssYarr2
->   speedList2 <- YIO.toList posssYarr2
->   posList2 <- YIO.toList qosssYarr2
->   putStrLn $ show posList2
->   putStrLn $ show speedList2
->
->   rsYarr3 <- repaToYarr $ fst rsVs3
->   rsList3 <-YIO.toList rsYarr3
->   putStrLn $ show rsList3
->   vsYarr3 <- repaToYarr $ snd rsVs3
->   vsList3 <-YIO.toList vsYarr3
->   putStrLn $ show vsList3
->   putStrLn $ show $ zipWith (V.zipWith (-)) rsList3 posList2
->   putStrLn $ show $ zipWith (V.zipWith (-)) vsList3 speedList2
->
->   stepOnceY gConstAu 100 mosssYarr qosssYarr posssYarr
->   speedList4 <- YIO.toList posssYarr
->   posList4 <- YIO.toList qosssYarr
->   putStrLn $ show posList4
->   putStrLn $ show speedList4
 
 > nSteps = 200 -- 36 -- 36 * 12
 
@@ -1061,30 +991,6 @@ Performance
 >   putStrLn $ show psList
 >   qsList <- YIO.toList qs
 >   putStrLn $ show qsList
-
-
-> main' :: IO ()
-> main' = do
->   rsVs <- stepN' nSteps gConst dt masses initRs initPs
->   -- putStrLn $ show rsVs
->   let rs = Prelude.map fst rsVs
->   -- putStrLn $ show $ extent $ rs!!nSteps
->   let vs = Prelude.map snd rsVs
->   putStrLn $ show $ extent $ vs!!nSteps
->   let erx nSteps = (rs!!nSteps)!(Z :. (0 :: Int) :. (0 :: Int))
->       ery nSteps = (rs!!nSteps)!(Z :. (0 :: Int) :. (1 :: Int))
->       erz nSteps = (rs!!nSteps)!(Z :. (0 :: Int) :. (2 :: Int))
->       jrx nSteps = (rs!!nSteps)!(Z :. (1 :: Int) :. (0 :: Int))
->       jry nSteps = (rs!!nSteps)!(Z :. (1 :: Int) :. (1 :: Int))
->       jrz nSteps = (rs!!nSteps)!(Z :. (1 :: Int) :. (2 :: Int))
->       -- srx = (rs!!nSteps)!(Z :. (2 :: Int) :. (0 :: Int))
->       -- sry = (rs!!nSteps)!(Z :. (2 :: Int) :. (1 :: Int))
->       -- srz = (rs!!nSteps)!(Z :. (2 :: Int) :. (2 :: Int))
->   mapM (\n -> putStrLn $ printf "%16.10e %16.10e %16.10e" (erx n) (ery n) (erz n)) [0 .. nSteps - 1]
->   mapM (\n -> putStrLn $ printf "%16.10e %16.10e %16.10e" (jrx n) (jry n) (jrz n)) [0 .. nSteps - 1]
->   -- putStrLn $ printf "%16.10e %16.10e %16.10e" srx sry srz
->   h <- zipWithM (hamiltonianP gConst masses) vs rs
->   putStrLn $ show $ h
 
 > simPlanets = runIdentity $ do
 >   rsVs <- stepN' nSteps gConst dt masses initRs initPs
