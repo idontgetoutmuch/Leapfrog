@@ -128,7 +128,6 @@ $$
 > 
 > import qualified Initial as I
 
-
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
 
@@ -377,8 +376,6 @@ $$
 \end{bmatrix}
 $$
 
-
-
 > runSE :: Double -> Double -> [(Double, Double)]
 > runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
 
@@ -390,7 +387,6 @@ $$
 >
 > hamiltonian :: Double -> Double -> Double -> Double -> Double
 > hamiltonian m l p q = (p^2 / (2 * m * l^2)) + (m * g * l * (1 - cos q))
-
 
 ```{.dia width='800'}
 import Symplectic
