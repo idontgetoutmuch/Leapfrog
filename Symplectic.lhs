@@ -867,6 +867,15 @@ The Outer Solar System
 >     xs = concat I.initQsOuter
 >     n  = length xs `div` spaceDim
 > 
+> qosssY :: IO PositionsY
+> qosssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
+>   where
+>     nBodies = length I.initQsOuter
+>     f :: Int -> PositionY
+>     f i = V.vl_3 ((I.initQsOuter!!i)!!0)
+>                  ((I.initQsOuter!!i)!!1)
+>                  ((I.initQsOuter!!i)!!2)
+> 
 > posss :: Array U DIM2 Double        
 > posss = fromListUnboxed (Z :. n :. spaceDim) xs
 >   where
@@ -924,7 +933,7 @@ Performance
 > mainNew = do
 >   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
 >   ps <- repaToYarr posss
->   qs <- repaToYarr qosss
+>   qs <- qosssY
 >   fill (\_ -> return ()) (\_ _ -> stepOnceY gConstAu 100 ms qs ps) (0 :: Int) nSteps
 >   putStrLn "New qs ps yarr"
 >   psList <- YIO.toList ps
@@ -939,7 +948,7 @@ Performance
 > main = do
 >   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
 >   ps <- repaToYarr posss
->   qs <- repaToYarr qosss
+>   qs <- qosssY
 >   psPreList <- YIO.toList ps
 >   qsPreList <- YIO.toList qs
 >   let qsRepa = fromListUnboxed (Z :. nBodies :. spaceDim) $
