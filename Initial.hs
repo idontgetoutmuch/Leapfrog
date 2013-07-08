@@ -19,6 +19,13 @@ module Initial (
   , massesOuter
   , initQsOuter
   , initPsOuter
+    -- Possibly not needed
+  , earthPerihelion
+  , earthEccentrity
+  , earthMajRad
+  , jupiterPerihelion
+  , jupiterEccentrity
+  , jupiterMajRad
   ) where
 
 import Data.List.Split
@@ -51,6 +58,22 @@ jupiterPerihelion = 7.405736e11
 
 earthPerihelion :: Double
 earthPerihelion = 1.470983e11
+
+jupiterAphelion   :: Double
+jupiterAphelion   = 8.165208e11
+jupiterEccentrity :: Double     -- Eccentricity is dimensionless
+jupiterEccentrity = 4.8775e-2
+
+jupiterMajRad :: Double
+jupiterMajRad = (jupiterPerihelion + jupiterAphelion) / 2
+
+earthAphelion   :: Double
+earthAphelion   = 1.520982e11
+earthEccentrity :: Double     -- Eccentricity is dimensionless
+earthEccentrity = 1.6711e-2
+
+earthMajRad :: Double
+earthMajRad = (earthPerihelion + earthAphelion) / 2
 
 jupiterV :: [Double]
 jupiterV = [-1.0965244901087316e02, -1.3710001990210707e04, 0.0]

@@ -113,7 +113,6 @@ $$
 
 > import Data.Array.Repa hiding ((++), zipWith)
 > import qualified Data.Array.Repa as Repa
-> import Data.Array.Repa.Algorithms.Matrix
 > import Control.Monad
 > import Control.Monad.Identity
 > import Text.Printf
@@ -121,9 +120,7 @@ $$
 
 > import qualified Data.Yarr as Y
 > import           Data.Yarr (loadS, dzip2, dzip3, F, L)
-> import qualified Data.Yarr.Repr.Delayed as YD
 > import           Data.Yarr.Repr.Delayed (UArray)
-> import qualified Data.Yarr.Shape as YS
 > import           Data.Yarr.Shape (fill, Dim1)
 > import qualified Data.Yarr.Utils.FixedVector as V
 > import           Data.Yarr.Utils.FixedVector (VecList, N3)
@@ -390,9 +387,6 @@ $$
 > brs   = runSE (initP + 1.0) initTheta
 > trs   = runSE (initP + 1.0) (initTheta + 1.0)
 > tls   = runSE initP         (initTheta + 1.0)
->
-> areaParGram (x1, y1) (x2, y2) = (x2 - x1) * (y2 - y1)
-> areas = zipWith areaParGram bls trs
 >
 > hamiltonian :: Double -> Double -> Double -> Double -> Double
 > hamiltonian m l p q = (p^2 / (2 * m * l^2)) + (m * g * l * (1 - cos q))
@@ -665,25 +659,6 @@ Now we need some initial conditions to start our simulation.
 
   [jupiter]: http://en.wikipedia.org/wiki/Jupiter
 
-> jupiterAphelion   :: Distance
-> jupiterAphelion   = 8.165208e11
-> jupiterPerihelion :: Distance
-> jupiterPerihelion = 7.405736e11
-> jupiterEccentrity :: Double     -- Eccentricity is dimensionless
-> jupiterEccentrity = 4.8775e-2
->
-> jupiterMajRad :: Distance
-> jupiterMajRad = (jupiterPerihelion + jupiterAphelion) / 2
-
-> earthAphelion   :: Distance
-> earthAphelion   = 1.520982e11
-> earthPerihelion :: Distance
-> earthPerihelion = 1.470983e11
-> earthEccentrity :: Double     -- Eccentricity is dimensionless
-> earthEccentrity = 1.6711e-2
->
-> earthMajRad :: Distance
-> earthMajRad = (earthPerihelion + earthAphelion) / 2
 
 Kepler's third law states, "The square of the orbital period of a
 planet is directly proportional to the cube of the semi-major axis of
@@ -701,7 +676,7 @@ gravitational constant and $M$ is the mass of the sun.
 From this we can calculate the mean angular velocity: $n = 2\pi / T$.
 
 > nJupiter :: Double
-> nJupiter = sqrt $ I.gConst * I.sunMass / jupiterMajRad^3
+> nJupiter = sqrt $ I.gConst * I.sunMass / I.jupiterMajRad^3
 
 $$
 \begin{align*}
@@ -737,13 +712,13 @@ $$
 
 > jupiterThetaDotP :: Double -- radians per second
 > jupiterThetaDotP = nJupiter *
->                    jupiterMajRad^2 *
->                    sqrt (1 - jupiterEccentrity^2) / jupiterPerihelion^2
+>                    I.jupiterMajRad^2 *
+>                    sqrt (1 - I.jupiterEccentrity^2) / I.jupiterPerihelion^2
 > jupiterDeltaThetaP :: Double -- radians
 > jupiterDeltaThetaP = jupiterThetaDotP * dt / 2
 >
 > jupiterVPeri :: Speed
-> jupiterVPeri = jupiterThetaDotP * jupiterPerihelion
+> jupiterVPeri = jupiterThetaDotP * I.jupiterPerihelion
 >
 > jupiterInitX :: Speed
 > jupiterInitX = negate $ jupiterVPeri * jupiterDeltaThetaP
@@ -755,23 +730,23 @@ $$
 > jupiterV = (jupiterInitX, jupiterInitY, 0.0)
 >
 > jupiterR :: (Distance, Distance, Distance)
-> jupiterR = (negate jupiterPerihelion, 0.0, 0.0)
+> jupiterR = (negate I.jupiterPerihelion, 0.0, 0.0)
 
 We can do the same for Earth but we assume the earth is at its
 perihelion on the opposite side of the Sun to Jupiter.
 
 > nEarth :: Double
-> nEarth = sqrt $ I.gConst * I.sunMass / earthMajRad^3
+> nEarth = sqrt $ I.gConst * I.sunMass / I.earthMajRad^3
 >
 > earthThetaDotP :: Double -- radians per second
 > earthThetaDotP = nEarth *
->                  earthMajRad^2 *
->                  sqrt (1 - earthEccentrity^2) / earthPerihelion^2
+>                  I.earthMajRad^2 *
+>                  sqrt (1 - I.earthEccentrity^2) / I.earthPerihelion^2
 > earthDeltaThetaP :: Double -- radians
 > earthDeltaThetaP = earthThetaDotP * dt / 2
 >
 > earthVPeri :: Speed
-> earthVPeri = earthThetaDotP * earthPerihelion
+> earthVPeri = earthThetaDotP * I.earthPerihelion
 >
 > earthInitX :: Speed
 > earthInitX = earthVPeri * earthDeltaThetaP
@@ -783,7 +758,7 @@ perihelion on the opposite side of the Sun to Jupiter.
 > earthV = (earthInitX, earthInitY, 0.0)
 >
 > earthR :: (Distance, Distance, Distance)
-> earthR = (earthPerihelion, 0.0, 0.0)
+> earthR = (I.earthPerihelion, 0.0, 0.0)
 
 For completeness we give the Sun's starting conditions.
 
