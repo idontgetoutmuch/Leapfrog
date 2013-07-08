@@ -128,6 +128,12 @@ $$
 > 
 > import qualified Initial as I
 
+> type Distance = Double
+> type Mass     = Double
+> type Force    = Double
+> type Speed    = Double
+> type Energy   = Double
+
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
 
@@ -645,12 +651,6 @@ Jupiter, Earth and Sun
 > timestepDays = 10           -- timestep in days
 > dt = timestepDays*k         -- timestep
 
-> type Distance = Double
-> type Mass     = Double
-> type Force    = Double
-> type Speed    = Double
-> type Energy   = Double
-
 Now we need some initial conditions to start our simulation.
 
   [jupiter]: http://en.wikipedia.org/wiki/Jupiter
@@ -823,6 +823,31 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >       rsVs <- stepAux (n-1) newRs newVs
 >       return $ (newRs, newVs) : rsVs
 
+> simPlanets = runIdentity $ do
+>   rsVs <- stepN' nSteps I.gConst dt masses initRs initPs
+>   let ps = Prelude.map fst rsVs
+>       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
+>       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
+>       jxs = Prelude.map (!(Z :. (1 :: Int) :. (0 :: Int))) ps
+>       jys = Prelude.map (!(Z :. (1 :: Int) :. (1 :: Int))) ps
+>       sxs = Prelude.map (!(Z :. (2 :: Int) :. (0 :: Int))) ps
+>       sys = Prelude.map (!(Z :. (2 :: Int) :. (1 :: Int))) ps
+>   return $ zip3 (zip exs eys) (zip jxs jys) (zip sxs sys)
+
+```{.dia width='600'}
+import Symplectic
+import SymplecticDia
+
+dia' :: DiagramC
+
+dia' = test tickSize [ (cellColour0, map (\(x, _, _) -> x) simPlanets)
+                     , (cellColour1, map (\(_, y, _) -> y) simPlanets)
+                     , (cellColour2, map (\(_, _, z) -> z) simPlanets)
+                     ]
+
+dia = dia'
+```
+
 The Outer Solar System
 ----------------------
 
@@ -954,30 +979,6 @@ Performance
 >   qsList <- YIO.toList qs
 >   putStrLn $ show qsList
 
-> simPlanets = runIdentity $ do
->   rsVs <- stepN' nSteps I.gConst dt masses initRs initPs
->   let ps = Prelude.map fst rsVs
->       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
->       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
->       jxs = Prelude.map (!(Z :. (1 :: Int) :. (0 :: Int))) ps
->       jys = Prelude.map (!(Z :. (1 :: Int) :. (1 :: Int))) ps
->       sxs = Prelude.map (!(Z :. (2 :: Int) :. (0 :: Int))) ps
->       sys = Prelude.map (!(Z :. (2 :: Int) :. (1 :: Int))) ps
->   return $ zip3 (zip exs eys) (zip jxs jys) (zip sxs sys)
-
-```{.dia width='600'}
-import Symplectic
-import SymplecticDia
-
-dia' :: DiagramC
-
-dia' = test tickSize [ (cellColour0, map (\(x, _, _) -> x) simPlanets)
-                     , (cellColour1, map (\(_, y, _) -> y) simPlanets)
-                     , (cellColour2, map (\(_, _, z) -> z) simPlanets)
-                     ]
-
-dia = dia'
-```
 
 Bibliography
 ------------
