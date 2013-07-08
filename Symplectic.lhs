@@ -205,7 +205,8 @@ dia = dia'
 ```
 
 In this case the energy is conserved so this looks like a good
-candidate for simulating orbital dynamics. But why does this work? It really looks very similar to the explicit Euler method.
+candidate for simulating orbital dynamics. But why does this work? It
+really looks very similar to the explicit Euler method.
 
 Theory
 ------
@@ -574,9 +575,8 @@ The gravitational constant in SI units and in the units we use to
 simulate the 5 outermost planets of the solar system: Astronomical
 Units, mass relative to the sun and earth days.
 
-> gConst, gConstAu :: Double
+> gConstAu :: Double
 > gConstAu = 2.95912208286e-4
-> gConst   = 6.67384e-11
 
 > spaceDim :: Int
 > spaceDim = 3
@@ -665,11 +665,6 @@ Now we need some initial conditions to start our simulation.
 
   [jupiter]: http://en.wikipedia.org/wiki/Jupiter
 
-> sunMass, jupiterMass, earthMass :: Mass
-> sunMass     = 1.9889e30
-> jupiterMass = 1.8986e27
-> earthMass   = 5.9722e24
-
 > jupiterAphelion   :: Distance
 > jupiterAphelion   = 8.165208e11
 > jupiterPerihelion :: Distance
@@ -706,7 +701,7 @@ gravitational constant and $M$ is the mass of the sun.
 From this we can calculate the mean angular velocity: $n = 2\pi / T$.
 
 > nJupiter :: Double
-> nJupiter = sqrt $ gConst * sunMass / jupiterMajRad^3
+> nJupiter = sqrt $ I.gConst * I.sunMass / jupiterMajRad^3
 
 $$
 \begin{align*}
@@ -766,7 +761,7 @@ We can do the same for Earth but we assume the earth is at its
 perihelion on the opposite side of the Sun to Jupiter.
 
 > nEarth :: Double
-> nEarth = sqrt $ gConst * sunMass / earthMajRad^3
+> nEarth = sqrt $ I.gConst * I.sunMass / earthMajRad^3
 >
 > earthThetaDotP :: Double -- radians per second
 > earthThetaDotP = nEarth *
@@ -829,13 +824,9 @@ For completeness we give the Sun's starting conditions.
 >     (sunX,     sunY,     sunZ)     = sunR
 
 > masses :: Array U DIM1 Mass
-> masses = fromListUnboxed (Z :. nBodies) xs
+> masses = fromListUnboxed (Z :. nBodies) I.massesTwoPlanets
 >   where
->     nBodies = length xs
->     xs = [ earthMass
->          , jupiterMass
->          , sunMass
->          ]
+>     nBodies = length I.massesTwoPlanets
 
 > stepN :: forall m . Monad m =>
 >          Int -> Double -> Double -> Masses -> Positions -> Momenta ->
@@ -993,7 +984,7 @@ Performance
 >   putStrLn $ show qsList
 
 > simPlanets = runIdentity $ do
->   rsVs <- stepN' nSteps gConst dt masses initRs initPs
+>   rsVs <- stepN' nSteps I.gConst dt masses initRs initPs
 >   let ps = Prelude.map fst rsVs
 >       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
 >       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps

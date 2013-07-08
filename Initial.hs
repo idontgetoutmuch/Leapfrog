@@ -9,6 +9,7 @@
 module Initial (
     spaceDim
   , gConst
+  , sunMass
   , nBodiesTwoPlanets
   , stepTwoPlanets
   , nStepsTwoPlanets
