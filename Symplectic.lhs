@@ -642,19 +642,9 @@ Units, mass relative to the sun and earth days.
 Jupiter, Earth and Sun
 ----------------------
 
-> k :: Double
-> k = 24*60*60                -- seconds in a day
-
-> days, t, timestepDays, dt :: Double
-> days = 36500*100            -- total time in days
-> t = days*k                  -- total time
-> timestepDays = 10           -- timestep in days
-> dt = timestepDays*k         -- timestep
-
 Now we need some initial conditions to start our simulation.
 
   [jupiter]: http://en.wikipedia.org/wiki/Jupiter
-
 
 Kepler's third law states, "The square of the orbital period of a
 planet is directly proportional to the cube of the semi-major axis of
@@ -711,7 +701,7 @@ $$
 >                    I.jupiterMajRad^2 *
 >                    sqrt (1 - I.jupiterEccentrity^2) / I.jupiterPerihelion^2
 > jupiterDeltaThetaP :: Double -- radians
-> jupiterDeltaThetaP = jupiterThetaDotP * dt / 2
+> jupiterDeltaThetaP = jupiterThetaDotP * I.stepTwoPlanets / 2
 >
 > jupiterVPeri :: Speed
 > jupiterVPeri = jupiterThetaDotP * I.jupiterPerihelion
@@ -739,7 +729,7 @@ perihelion on the opposite side of the Sun to Jupiter.
 >                  I.earthMajRad^2 *
 >                  sqrt (1 - I.earthEccentrity^2) / I.earthPerihelion^2
 > earthDeltaThetaP :: Double -- radians
-> earthDeltaThetaP = earthThetaDotP * dt / 2
+> earthDeltaThetaP = earthThetaDotP * I.stepTwoPlanets / 2
 >
 > earthVPeri :: Speed
 > earthVPeri = earthThetaDotP * I.earthPerihelion
@@ -824,7 +814,7 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >       return $ (newRs, newVs) : rsVs
 
 > simPlanets = runIdentity $ do
->   rsVs <- stepN' nSteps I.gConst dt masses initRs initPs
+>   rsVs <- stepN' nSteps I.gConst I.stepTwoPlanets masses initRs initPs
 >   let ps = Prelude.map fst rsVs
 >       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
 >       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps

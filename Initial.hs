@@ -43,7 +43,7 @@ nStepsTwoPlanets :: Int
 nStepsTwoPlanets = 3
 
 stepTwoPlanets :: Double
-stepTwoPlanets = 864000.0
+stepTwoPlanets = 24 * 60 * 60 * 10
 
 sunMass, jupiterMass, earthMass :: Double
 sunMass     = 1.9889e30
@@ -61,7 +61,7 @@ earthPerihelion = 1.470983e11
 
 jupiterAphelion   :: Double
 jupiterAphelion   = 8.165208e11
-jupiterEccentrity :: Double     -- Eccentricity is dimensionless
+jupiterEccentrity :: Double
 jupiterEccentrity = 4.8775e-2
 
 jupiterMajRad :: Double
@@ -69,7 +69,7 @@ jupiterMajRad = (jupiterPerihelion + jupiterAphelion) / 2
 
 earthAphelion   :: Double
 earthAphelion   = 1.520982e11
-earthEccentrity :: Double     -- Eccentricity is dimensionless
+earthEccentrity :: Double
 earthEccentrity = 1.6711e-2
 
 earthMajRad :: Double
