@@ -881,6 +881,15 @@ The Outer Solar System
 >   where
 >     xs = concat I.initPsOuter
 >     n  = length xs `div` spaceDim
+>     
+> posssY :: IO MomentaY
+> posssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
+>   where
+>     nBodies = length I.initPsOuter
+>     f :: Int -> MomentumY
+>     f i = V.vl_3 ((I.initQsOuter!!i)!!0)
+>                  ((I.initQsOuter!!i)!!1)
+>                  ((I.initQsOuter!!i)!!2)
 
 > sunIndex :: Int
 > sunIndex = let (Z :. i) = extent mosss in i
@@ -918,21 +927,12 @@ dia = dia'
 Performance
 -----------
 
-
-> repaToYarr :: Array U DIM2 Double -> IO PositionsY
-> repaToYarr osss = YIO.fromList nBodies $ Prelude.map foo [0 .. nBodies - 1]
->   where
->     foo :: Int -> PositionY
->     foo i = (\[x, y, z] -> V.vl_3 x y z) $
->             toList $
->             slice osss (Any :. i :. All)
-
 > nSteps = 200 -- 36 -- 36 * 12
 
 > mainNew :: IO ()
 > mainNew = do
 >   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
->   ps <- repaToYarr posss
+>   ps <- posssY
 >   qs <- qosssY
 >   fill (\_ -> return ()) (\_ _ -> stepOnceY gConstAu 100 ms qs ps) (0 :: Int) nSteps
 >   putStrLn "New qs ps yarr"
@@ -943,11 +943,10 @@ Performance
 >   -- h <- zipWithM (hamiltonianP gConstAu mosss) undefined undefined -- qs ps
 >   -- putStrLn $ show h
 
-
 > main :: IO ()
 > main = do
 >   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
->   ps <- repaToYarr posss
+>   ps <- posssY
 >   qs <- qosssY
 >   psPreList <- YIO.toList ps
 >   qsPreList <- YIO.toList qs
