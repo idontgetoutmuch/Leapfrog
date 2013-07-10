@@ -564,18 +564,12 @@ $$
 >   stepPositionY h qs ms ps
 
 > -- FIXME
-> repDim2to3Outer a = extend (Any :. spaceDim) a
+> repDim2to3Outer a = extend (Any :. I.spaceDim) a
 
 
 The gravitational constant in SI units and in the units we use to
 simulate the 5 outermost planets of the solar system: Astronomical
 Units, mass relative to the sun and earth days.
-
-> gConstAu :: Double
-> gConstAu = 2.95912208286e-4
-
-> spaceDim :: Int
-> spaceDim = 3
 
 > type Momenta   = Array U DIM2 Double
 > type Positions = Array U DIM2 Double
@@ -755,7 +749,7 @@ For completeness we give the Sun's starting conditions.
 > sunR = (0.0, 0.0, 0.0)
 
 > initVs :: Array U DIM2 Speed
-> initVs = fromListUnboxed (Z :. nBodies :. spaceDim) $ concat xs
+> initVs = fromListUnboxed (Z :. nBodies :. I.spaceDim) $ concat xs
 >   where
 >     nBodies = length xs
 >     xs = [ [earthX,   earthY,   earthZ]
@@ -773,7 +767,7 @@ For completeness we give the Sun's starting conditions.
 >     ms2 = extend (Any :. j) masses
 
 > initRs :: Array U DIM2 Distance
-> initRs = fromListUnboxed (Z :. nBodies :. spaceDim) $ concat xs
+> initRs = fromListUnboxed (Z :. nBodies :. I.spaceDim) $ concat xs
 >   where
 >     nBodies = length xs
 >     xs = [ [earthX,   earthY,   earthZ]
@@ -814,7 +808,7 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >       return $ (newRs, newVs) : rsVs
 
 > simPlanets = runIdentity $ do
->   rsVs <- stepN' nSteps I.gConst I.stepTwoPlanets masses initRs initPs
+>   rsVs <- stepN' I.nStepsOuter I.gConst I.stepTwoPlanets masses initRs initPs
 >   let ps = Prelude.map fst rsVs
 >       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
 >       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
@@ -852,10 +846,10 @@ The Outer Solar System
 >     n = length I.massesOuter
 >
 > qosss :: Array U DIM2 Double
-> qosss = fromListUnboxed (Z :. n :. spaceDim) xs
+> qosss = fromListUnboxed (Z :. n :. I.spaceDim) xs
 >   where
 >     xs = concat I.initQsOuter
->     n  = length xs `div` spaceDim
+>     n  = length xs `div` I.spaceDim
 > 
 > qosssY :: IO PositionsY
 > qosssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
@@ -867,10 +861,10 @@ The Outer Solar System
 >                  ((I.initQsOuter!!i)!!2)
 > 
 > posss :: Array U DIM2 Double        
-> posss = fromListUnboxed (Z :. n :. spaceDim) xs
+> posss = fromListUnboxed (Z :. n :. I.spaceDim) xs
 >   where
 >     xs = concat I.initPsOuter
->     n  = length xs `div` spaceDim
+>     n  = length xs `div` I.spaceDim
 >     
 > posssY :: IO MomentaY
 > posssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
@@ -885,7 +879,7 @@ The Outer Solar System
 > sunIndex = let (Z :. i) = extent mosss in i
 
 > outerPlanets = runIdentity $ do
->   rsVs <- stepN' 2000 gConstAu 100 mosss qosss posss
+>   rsVs <- stepN' 2000 I.gConstAu 100 mosss qosss posss
 >   let ps = Prelude.map fst rsVs
 >       xxs = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (0 :: Int))) ps)
 >                         [5,0,1,2,3,4]
@@ -917,20 +911,18 @@ dia = dia'
 Performance
 -----------
 
-> nSteps = 200 -- 36 -- 36 * 12
-
 > mainNew :: IO ()
 > mainNew = do
 >   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
 >   ps <- posssY
 >   qs <- qosssY
->   fill (\_ -> return ()) (\_ _ -> stepOnceY gConstAu 100 ms qs ps) (0 :: Int) nSteps
+>   fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
 >   putStrLn "New qs ps yarr"
 >   psList <- YIO.toList ps
 >   putStrLn $ show psList
 >   qsList <- YIO.toList qs
 >   putStrLn $ show qsList
->   -- h <- zipWithM (hamiltonianP gConstAu mosss) undefined undefined -- qs ps
+>   -- h <- zipWithM (hamiltonianP I.gConstAu mosss) undefined undefined -- qs ps
 >   -- putStrLn $ show h
 
 > main :: IO ()
@@ -940,11 +932,11 @@ Performance
 >   qs <- qosssY
 >   psPreList <- YIO.toList ps
 >   qsPreList <- YIO.toList qs
->   let qsRepa = fromListUnboxed (Z :. nBodies :. spaceDim) $
+>   let qsRepa = fromListUnboxed (Z :. nBodies :. I.spaceDim) $
 >                concat $
 >                L.transpose $
 >                Prelude.map (\n -> Prelude.map (V.!n) qsPreList) [0..2]
->   let psRepa = fromListUnboxed (Z :. nBodies :. spaceDim) $
+>   let psRepa = fromListUnboxed (Z :. nBodies :. I.spaceDim) $
 >                concat $
 >                L.transpose $
 >                Prelude.map (\n -> Prelude.map (V.!n) psPreList) [0..2]
@@ -955,28 +947,27 @@ Performance
 >   putStrLn $ show qsPreList
 >   putStrLn $ show qsRepa
 >   putStrLn "Step once"
->   foo <- stepMomentumP gConstAu 100 qsRepa mosss psRepa
+>   foo <- stepMomentumP I.gConstAu 100 qsRepa mosss psRepa
 >   putStrLn $ show foo
->   bar <- hamiltonianP gConstAu mosss qsRepa psRepa
+>   bar <- hamiltonianP I.gConstAu mosss qsRepa psRepa
 >   putStrLn $ show bar
->   rsVs <- stepN' 10 gConstAu 100 mosss qosss posss
->   h <- zipWithM (hamiltonianP gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
+>   rsVs <- stepN' 10 I.gConstAu 100 mosss qosss posss
+>   h <- zipWithM (hamiltonianP I.gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
 >   putStrLn $ show h
 >   putStrLn $ show qosss
 >   putStrLn $ show qsRepa
->   newQsPs <- stepN nSteps gConstAu 100
+>   newQsPs <- stepN I.nStepsOuter I.gConstAu 100
 >              mosss
 >              qsRepa
 >              psRepa
 >   putStrLn "New qs ps repa"
 >   putStrLn $ show newQsPs
->   fill (\_ -> return ()) (\_ _ -> stepOnceY gConstAu 100 ms qs ps) (0 :: Int) nSteps
+>   fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
 >   putStrLn "New qs ps yarr"
 >   psList <- YIO.toList ps
 >   putStrLn $ show psList
 >   qsList <- YIO.toList qs
 >   putStrLn $ show qsList
-
 
 Bibliography
 ------------

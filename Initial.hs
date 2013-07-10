@@ -9,6 +9,7 @@
 module Initial (
     spaceDim
   , gConst
+  , gConstAu
   , sunMass
   , nBodiesTwoPlanets
   , stepTwoPlanets
@@ -16,6 +17,7 @@ module Initial (
   , massesTwoPlanets
   , initQs
   , initPs
+  , nStepsOuter     
   , massesOuter
   , initQsOuter
   , initPsOuter
@@ -32,6 +34,9 @@ import Data.List.Split
 
 gConst :: Double
 gConst = 6.67384e-11
+
+gConstAu :: Double
+gConstAu = 2.95912208286e-4
 
 nBodiesTwoPlanets :: Int
 nBodiesTwoPlanets = 3
@@ -100,6 +105,9 @@ initPs = zipWith (\m v -> map (*m) v)
 
 initQs :: [[Double]]
 initQs = [earthQ, jupiterQ, sunQ]
+
+nStepsOuter :: Int
+nStepsOuter = 200
 
 massesOuter :: [Double]
 massesOuter =
