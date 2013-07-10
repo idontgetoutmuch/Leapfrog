@@ -211,7 +211,7 @@ candidate for simulating orbital dynamics. But why does this work? It
 really looks very similar to the explicit Euler method.
 
 Theory
-------
+======
 
 ```{.dia width='800'}
 illustrateBezier c0 c1 c2 c3 x2 x3
@@ -232,7 +232,7 @@ dia = example
 ```
 
 The Canonical Symplectic Form for the Cotangent Bundle
-======================================================
+------------------------------------------------------
 
 The cotangent bundle has a canonical symplectic 2-form and hence is a symplectic manifold.
 
@@ -294,7 +294,7 @@ $$
 $$
 
 Hamiltonian Vector Fields
-=========================
+-------------------------
 
 Without proof let us record the following fact. Let $(M, \omega)$ be a
 symplectic manifold. Then there exists a bundle isomorphism
@@ -316,7 +316,7 @@ $$
 $$
 
 Euler Symplectic
-================
+----------------
 
 $$
 \begin{aligned}
@@ -410,7 +410,7 @@ dia = dia'
 ```
 
 Planetary Motion
-----------------
+================
 
 Normally we would express the gravitational constant in SI units but
 to be consistent with [@hairer2010geometric] we use units in which
@@ -633,8 +633,148 @@ Units, mass relative to the sun and earth days.
 >   where (Z :. i :. _j) = extent a
 >
 
-Jupiter, Earth and Sun
-----------------------
+The Outer Solar System
+======================
+
+> mosss :: Array U DIM1 Double
+> mosss = fromListUnboxed (Z :. n) I.massesOuter
+>   where
+>     n = length I.massesOuter
+> 
+> mosssY :: IO (UArray F L Dim1 Double)
+> mosssY = YIO.fromList n I.massesOuter
+>   where
+>     n = length I.massesOuter
+>
+> qosss :: Array U DIM2 Double
+> qosss = fromListUnboxed (Z :. n :. I.spaceDim) xs
+>   where
+>     xs = concat I.initQsOuter
+>     n  = length xs `div` I.spaceDim
+> 
+> qosssY :: IO PositionsY
+> qosssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
+>   where
+>     nBodies = length I.initQsOuter
+>     f :: Int -> PositionY
+>     f i = V.vl_3 ((I.initQsOuter!!i)!!0)
+>                  ((I.initQsOuter!!i)!!1)
+>                  ((I.initQsOuter!!i)!!2)
+> 
+> posss :: Array U DIM2 Double        
+> posss = fromListUnboxed (Z :. n :. I.spaceDim) xs
+>   where
+>     xs = concat I.initPsOuter
+>     n  = length xs `div` I.spaceDim
+>     
+> posssY :: IO MomentaY
+> posssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
+>   where
+>     nBodies = length I.initPsOuter
+>     f :: Int -> MomentumY
+>     f i = V.vl_3 ((I.initQsOuter!!i)!!0)
+>                  ((I.initQsOuter!!i)!!1)
+>                  ((I.initQsOuter!!i)!!2)
+
+> sunIndex :: Int
+> sunIndex = let (Z :. i) = extent mosss in i
+
+> outerPlanets = runIdentity $ do
+>   rsVs <- stepN' 2000 I.gConstAu 100 mosss qosss posss
+>   let ps = Prelude.map fst rsVs
+>       xxs = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (0 :: Int))) ps)
+>                         [5,0,1,2,3,4]
+>       xys = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (1 :: Int))) ps)
+>                         [5,0,1,2,3,4]
+>   return $ zipWith zip xxs xys
+
+    [ghci]
+    take 5 (outerPlanets!!0)
+    take 5 (outerPlanets!!1)
+
+```{.dia width='600'}
+import Symplectic
+import SymplecticDia
+
+dia' :: DiagramC
+
+dia' = test tickSize [ (cellColour0, zipWith (-) (outerPlanets!!0) (outerPlanets!!0))
+                     , (cellColour1, zipWith (-) (outerPlanets!!1) (outerPlanets!!0))
+                     , (cellColour2, zipWith (-) (outerPlanets!!2) (outerPlanets!!0))
+                     , (cellColour1, zipWith (-) (outerPlanets!!3) (outerPlanets!!0))
+                     , (cellColour2, zipWith (-) (outerPlanets!!4) (outerPlanets!!0))
+                     , (cellColour3, zipWith (-) (outerPlanets!!5) (outerPlanets!!0))
+                     ]
+
+dia = dia'
+```
+
+Performance
+===========
+
+> mainNew :: IO ()
+> mainNew = do
+>   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
+>   ps <- posssY
+>   qs <- qosssY
+>   fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
+>   putStrLn "New qs ps yarr"
+>   psList <- YIO.toList ps
+>   putStrLn $ show psList
+>   qsList <- YIO.toList qs
+>   putStrLn $ show qsList
+>   -- h <- zipWithM (hamiltonianP I.gConstAu mosss) undefined undefined -- qs ps
+>   -- putStrLn $ show h
+
+> main :: IO ()
+> main = do
+>   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
+>   ps <- posssY
+>   qs <- qosssY
+>   psPreList <- YIO.toList ps
+>   qsPreList <- YIO.toList qs
+>   let qsRepa = fromListUnboxed (Z :. nBodies :. I.spaceDim) $
+>                concat $
+>                L.transpose $
+>                Prelude.map (\n -> Prelude.map (V.!n) qsPreList) [0..2]
+>   let psRepa = fromListUnboxed (Z :. nBodies :. I.spaceDim) $
+>                concat $
+>                L.transpose $
+>                Prelude.map (\n -> Prelude.map (V.!n) psPreList) [0..2]
+>   putStrLn "Original ps"
+>   putStrLn $ show psPreList
+>   putStrLn $ show psRepa
+>   putStrLn "Original qs"
+>   putStrLn $ show qsPreList
+>   putStrLn $ show qsRepa
+>   putStrLn "Step once"
+>   foo <- stepMomentumP I.gConstAu 100 qsRepa mosss psRepa
+>   putStrLn $ show foo
+>   bar <- hamiltonianP I.gConstAu mosss qsRepa psRepa
+>   putStrLn $ show bar
+>   rsVs <- stepN' 10 I.gConstAu 100 mosss qosss posss
+>   h <- zipWithM (hamiltonianP I.gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
+>   putStrLn $ show h
+>   putStrLn $ show qosss
+>   putStrLn $ show qsRepa
+>   newQsPs <- stepN I.nStepsOuter I.gConstAu 100
+>              mosss
+>              qsRepa
+>              psRepa
+>   putStrLn "New qs ps repa"
+>   putStrLn $ show newQsPs
+>   fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
+>   putStrLn "New qs ps yarr"
+>   psList <- YIO.toList ps
+>   putStrLn $ show psList
+>   qsList <- YIO.toList qs
+>   putStrLn $ show qsList
+
+Appendices
+==========
+
+Appendix A: Jupiter, Earth and Sun
+----------------------------------
 
 Now we need some initial conditions to start our simulation.
 
@@ -831,143 +971,6 @@ dia' = test tickSize [ (cellColour0, map (\(x, _, _) -> x) simPlanets)
 
 dia = dia'
 ```
-
-The Outer Solar System
-----------------------
-
-> mosss :: Array U DIM1 Double
-> mosss = fromListUnboxed (Z :. n) I.massesOuter
->   where
->     n = length I.massesOuter
-> 
-> mosssY :: IO (UArray F L Dim1 Double)
-> mosssY = YIO.fromList n I.massesOuter
->   where
->     n = length I.massesOuter
->
-> qosss :: Array U DIM2 Double
-> qosss = fromListUnboxed (Z :. n :. I.spaceDim) xs
->   where
->     xs = concat I.initQsOuter
->     n  = length xs `div` I.spaceDim
-> 
-> qosssY :: IO PositionsY
-> qosssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
->   where
->     nBodies = length I.initQsOuter
->     f :: Int -> PositionY
->     f i = V.vl_3 ((I.initQsOuter!!i)!!0)
->                  ((I.initQsOuter!!i)!!1)
->                  ((I.initQsOuter!!i)!!2)
-> 
-> posss :: Array U DIM2 Double        
-> posss = fromListUnboxed (Z :. n :. I.spaceDim) xs
->   where
->     xs = concat I.initPsOuter
->     n  = length xs `div` I.spaceDim
->     
-> posssY :: IO MomentaY
-> posssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
->   where
->     nBodies = length I.initPsOuter
->     f :: Int -> MomentumY
->     f i = V.vl_3 ((I.initQsOuter!!i)!!0)
->                  ((I.initQsOuter!!i)!!1)
->                  ((I.initQsOuter!!i)!!2)
-
-> sunIndex :: Int
-> sunIndex = let (Z :. i) = extent mosss in i
-
-> outerPlanets = runIdentity $ do
->   rsVs <- stepN' 2000 I.gConstAu 100 mosss qosss posss
->   let ps = Prelude.map fst rsVs
->       xxs = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (0 :: Int))) ps)
->                         [5,0,1,2,3,4]
->       xys = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (1 :: Int))) ps)
->                         [5,0,1,2,3,4]
->   return $ zipWith zip xxs xys
-
-    [ghci]
-    take 5 (outerPlanets!!0)
-    take 5 (outerPlanets!!1)
-
-```{.dia width='600'}
-import Symplectic
-import SymplecticDia
-
-dia' :: DiagramC
-
-dia' = test tickSize [ (cellColour0, zipWith (-) (outerPlanets!!0) (outerPlanets!!0))
-                     , (cellColour1, zipWith (-) (outerPlanets!!1) (outerPlanets!!0))
-                     , (cellColour2, zipWith (-) (outerPlanets!!2) (outerPlanets!!0))
-                     , (cellColour1, zipWith (-) (outerPlanets!!3) (outerPlanets!!0))
-                     , (cellColour2, zipWith (-) (outerPlanets!!4) (outerPlanets!!0))
-                     , (cellColour3, zipWith (-) (outerPlanets!!5) (outerPlanets!!0))
-                     ]
-
-dia = dia'
-```
-
-Performance
------------
-
-> mainNew :: IO ()
-> mainNew = do
->   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
->   ps <- posssY
->   qs <- qosssY
->   fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
->   putStrLn "New qs ps yarr"
->   psList <- YIO.toList ps
->   putStrLn $ show psList
->   qsList <- YIO.toList qs
->   putStrLn $ show qsList
->   -- h <- zipWithM (hamiltonianP I.gConstAu mosss) undefined undefined -- qs ps
->   -- putStrLn $ show h
-
-> main :: IO ()
-> main = do
->   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
->   ps <- posssY
->   qs <- qosssY
->   psPreList <- YIO.toList ps
->   qsPreList <- YIO.toList qs
->   let qsRepa = fromListUnboxed (Z :. nBodies :. I.spaceDim) $
->                concat $
->                L.transpose $
->                Prelude.map (\n -> Prelude.map (V.!n) qsPreList) [0..2]
->   let psRepa = fromListUnboxed (Z :. nBodies :. I.spaceDim) $
->                concat $
->                L.transpose $
->                Prelude.map (\n -> Prelude.map (V.!n) psPreList) [0..2]
->   putStrLn "Original ps"
->   putStrLn $ show psPreList
->   putStrLn $ show psRepa
->   putStrLn "Original qs"
->   putStrLn $ show qsPreList
->   putStrLn $ show qsRepa
->   putStrLn "Step once"
->   foo <- stepMomentumP I.gConstAu 100 qsRepa mosss psRepa
->   putStrLn $ show foo
->   bar <- hamiltonianP I.gConstAu mosss qsRepa psRepa
->   putStrLn $ show bar
->   rsVs <- stepN' 10 I.gConstAu 100 mosss qosss posss
->   h <- zipWithM (hamiltonianP I.gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
->   putStrLn $ show h
->   putStrLn $ show qosss
->   putStrLn $ show qsRepa
->   newQsPs <- stepN I.nStepsOuter I.gConstAu 100
->              mosss
->              qsRepa
->              psRepa
->   putStrLn "New qs ps repa"
->   putStrLn $ show newQsPs
->   fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
->   putStrLn "New qs ps yarr"
->   psList <- YIO.toList ps
->   putStrLn $ show psList
->   qsList <- YIO.toList qs
->   putStrLn $ show qsList
 
 Bibliography
 ------------
