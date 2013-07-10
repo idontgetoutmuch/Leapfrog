@@ -17,7 +17,8 @@ module Initial (
   , massesTwoPlanets
   , initQs
   , initPs
-  , nStepsOuter     
+  , nStepsOuter
+  , nBodiesOuter
   , massesOuter
   , initQsOuter
   , initPsOuter
@@ -108,6 +109,9 @@ initQs = [earthQ, jupiterQ, sunQ]
 
 nStepsOuter :: Int
 nStepsOuter = 200
+
+nBodiesOuter :: Int
+nBodiesOuter = length massesOuter
 
 massesOuter :: [Double]
 massesOuter =

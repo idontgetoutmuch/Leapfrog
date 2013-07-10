@@ -121,7 +121,7 @@ $$
 > import qualified Data.Yarr as Y
 > import           Data.Yarr (loadS, dzip2, dzip3, F, L)
 > import           Data.Yarr.Repr.Delayed (UArray)
-> import           Data.Yarr.Shape (fill, Dim1)
+> import qualified Data.Yarr.Shape as S
 > import qualified Data.Yarr.Utils.FixedVector as V
 > import           Data.Yarr.Utils.FixedVector (VecList, N3)
 > import qualified Data.Yarr.IO.List as YIO
@@ -460,7 +460,7 @@ $$
 >       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >       ms2 = extend (Any :. j) ms
 
-> type ArrayY = UArray F L Dim1
+> type ArrayY = UArray F L S.Dim1
 
 > type PositionY   = VecList N3 Double
 > type MomentumY      = VecList N3 Double
@@ -473,7 +473,7 @@ $$
 > type ForcesY = ArrayY ForceY
 
 > stepPositionY :: Double -> PositionsY -> MassesY -> MomentaY -> IO ()
-> stepPositionY h qs ms vs = loadS fill (dzip3 upd qs ms vs) qs
+> stepPositionY h qs ms vs = loadS S.fill (dzip3 upd qs ms vs) qs
 >   where
 >     upd :: PositionY -> Mass -> MomentumY -> PositionY
 >     upd q m p = V.zipWith (+) q (V.map (* (h / m)) p)
@@ -511,8 +511,6 @@ $$
 > vZero :: VecList N3 Double
 > vZero = V.replicate 0
 
-> nBodies = let (Z :. i) = extent mosss in i
-> 
 > stepMomentumY :: Double ->
 >                  Double ->
 >                  PositionsY ->
@@ -520,7 +518,9 @@ $$
 >                  MomentaY ->
 >                  IO ()
 > stepMomentumY gConst h qs ms ps = do
+>   let nBodies = Y.extent ms
 >   fs :: ForcesY <- Y.new nBodies
+>   S.fill (\_ -> return vZero) (Y.write fs) 0 nBodies
 >   let forceBetween i pos1 mass1 j
 >         | i == j = return vZero
 >         | otherwise = do
@@ -537,11 +537,21 @@ $$
 >         Y.write fs i (V.zipWith (+) f0 f)
 >       force i pos = do
 >         mass <- ms `Y.index` i
->         fill (forceBetween i pos mass) (forceAdd i) 0 nBodies
+>         S.fill (forceBetween i pos mass) (forceAdd i) 0 nBodies
 >       upd momentum force =
 >         V.zipWith (+) momentum (V.map (\f -> f * h) force)
->   fill (Y.index qs) force 0 nBodies
->   loadS fill (dzip2 upd ps fs) ps
+>   S.fill (Y.index qs) force 0 nBodies
+>   loadS S.fill (dzip2 upd ps fs) ps
+
+> stepOnceY :: Double ->
+>              Double ->
+>              MassesY ->
+>              PositionsY ->
+>              MomentaY ->
+>              IO ()
+> stepOnceY gConst h ms qs ps = do
+>   stepMomentumY gConst h qs ms ps
+>   stepPositionY h qs ms ps
 
 > stepOnceP :: ( Monad m
 >              , Source a Double
@@ -559,9 +569,6 @@ $$
 >   newQs <- stepPositionP h qs ms newPs
 >   return (newQs, newPs)
 
-> stepOnceY gConst h ms qs ps = do
->   stepMomentumY gConst h qs ms ps
->   stepPositionY h qs ms ps
 
 > -- FIXME
 > repDim2to3Outer a = extend (Any :. I.spaceDim) a
@@ -641,7 +648,7 @@ The Outer Solar System
 >   where
 >     n = length I.massesOuter
 > 
-> mosssY :: IO (UArray F L Dim1 Double)
+> mosssY :: IO (UArray F L S.Dim1 Double)
 > mosssY = YIO.fromList n I.massesOuter
 >   where
 >     n = length I.massesOuter
@@ -714,10 +721,10 @@ Performance
 
 > mainNew :: IO ()
 > mainNew = do
->   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
+>   ms :: MassesY <- mosssY
 >   ps <- posssY
 >   qs <- qosssY
->   fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
+>   S.fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
 >   putStrLn "New qs ps yarr"
 >   psList <- YIO.toList ps
 >   putStrLn $ show psList
@@ -728,16 +735,16 @@ Performance
 
 > main :: IO ()
 > main = do
->   ms :: MassesY <- YIO.fromList nBodies $ toList mosss
+>   ms :: MassesY <- mosssY
 >   ps <- posssY
 >   qs <- qosssY
 >   psPreList <- YIO.toList ps
 >   qsPreList <- YIO.toList qs
->   let qsRepa = fromListUnboxed (Z :. nBodies :. I.spaceDim) $
+>   let qsRepa = fromListUnboxed (Z :. I.nBodiesOuter :. I.spaceDim) $
 >                concat $
 >                L.transpose $
 >                Prelude.map (\n -> Prelude.map (V.!n) qsPreList) [0..2]
->   let psRepa = fromListUnboxed (Z :. nBodies :. I.spaceDim) $
+>   let psRepa = fromListUnboxed (Z :. I.nBodiesOuter :. I.spaceDim) $
 >                concat $
 >                L.transpose $
 >                Prelude.map (\n -> Prelude.map (V.!n) psPreList) [0..2]
@@ -763,7 +770,7 @@ Performance
 >              psRepa
 >   putStrLn "New qs ps repa"
 >   putStrLn $ show newQsPs
->   fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
+>   S.fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
 >   putStrLn "New qs ps yarr"
 >   psList <- YIO.toList ps
 >   putStrLn $ show psList
