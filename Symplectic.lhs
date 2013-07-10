@@ -125,6 +125,7 @@ $$
 > import qualified Data.Yarr.Utils.FixedVector as V
 > import           Data.Yarr.Utils.FixedVector (VecList, N3)
 > import qualified Data.Yarr.IO.List as YIO
+> import qualified Data.Yarr.Walk as W
 > 
 > import qualified Initial as I
 
@@ -553,6 +554,48 @@ $$
 >   stepMomentumY gConst h qs ms ps
 >   stepPositionY h qs ms ps
 
+> potentialEnergy :: Double -> MassesY -> PositionsY -> IO (ArrayY Double)
+> potentialEnergy gConst ms qs = do
+>   let nBodies = Y.extent ms
+>   pes :: ArrayY Double <- Y.new nBodies
+>   S.fill (\_ -> return 0.0) (Y.write pes) 0 nBodies
+>   let peOnePairParticles :: Int ->
+>                             Int ->
+>                             IO Double
+>       peOnePairParticles i j
+>         | i == j = return 0.0
+>         | otherwise = do
+>           q1 <- qs `Y.index` i
+>           m1 <- ms `Y.index` i
+>           q2 <- qs `Y.index` j
+>           m2 <- ms `Y.index` j
+>           let qDiffs = V.zipWith (-) q1 q2
+>               dist2  = V.sum $ V.map (^2) qDiffs
+>               a      = 1.0 / dist2
+>               b      = 0.5 * (negate gConst) * m1 * m2 * (sqrt a)
+>           return b
+>       peAdd i _ pe = do
+>         peDelta <- pes `Y.index` i
+>         Y.write pes i (pe + peDelta)
+>       peFn i _ = do
+>         S.fill (peOnePairParticles i) (peAdd i) 0 nBodies
+>   S.fill (Y.index qs) peFn 0 nBodies
+>   return pes
+
+> kineticEnergy :: MassesY -> MomentaY-> IO Double
+> kineticEnergy ms ps = do
+>   let preKes = Y.dmap V.sum $ dzip2 (V.zipWith (*)) ps ps
+>       kes     = dzip2 (/) preKes (Y.delay ms)
+>   ke <- W.walk (W.reduceL S.foldl (+)) (return 0) kes
+>   return $ 0.5 * ke
+
+> hamiltonianY :: Double -> MassesY -> PositionsY -> MomentaY-> IO Double
+> hamiltonianY gConst ms qs ps = do
+>   ke  <- kineticEnergy ms ps
+>   pes <- potentialEnergy gConst ms qs
+>   pe  <- W.walk (W.reduceL S.foldl (+)) (return 0) pes
+>   return $ pe + ke
+
 > stepOnceP :: ( Monad m
 >              , Source a Double
 >              , Source b Double
@@ -719,58 +762,18 @@ dia = dia'
 Performance
 ===========
 
-> mainNew :: IO ()
-> mainNew = do
->   ms :: MassesY <- mosssY
->   ps <- posssY
->   qs <- qosssY
->   S.fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
->   putStrLn "New qs ps yarr"
->   psList <- YIO.toList ps
->   putStrLn $ show psList
->   qsList <- YIO.toList qs
->   putStrLn $ show qsList
->   -- h <- zipWithM (hamiltonianP I.gConstAu mosss) undefined undefined -- qs ps
->   -- putStrLn $ show h
-
 > main :: IO ()
 > main = do
 >   ms :: MassesY <- mosssY
 >   ps <- posssY
 >   qs <- qosssY
->   psPreList <- YIO.toList ps
->   qsPreList <- YIO.toList qs
->   let qsRepa = fromListUnboxed (Z :. I.nBodiesOuter :. I.spaceDim) $
->                concat $
->                L.transpose $
->                Prelude.map (\n -> Prelude.map (V.!n) qsPreList) [0..2]
->   let psRepa = fromListUnboxed (Z :. I.nBodiesOuter :. I.spaceDim) $
->                concat $
->                L.transpose $
->                Prelude.map (\n -> Prelude.map (V.!n) psPreList) [0..2]
->   putStrLn "Original ps"
->   putStrLn $ show psPreList
->   putStrLn $ show psRepa
->   putStrLn "Original qs"
->   putStrLn $ show qsPreList
->   putStrLn $ show qsRepa
->   putStrLn "Step once"
->   foo <- stepMomentumP I.gConstAu 100 qsRepa mosss psRepa
->   putStrLn $ show foo
->   bar <- hamiltonianP I.gConstAu mosss qsRepa psRepa
->   putStrLn $ show bar
->   rsVs <- stepN' 10 I.gConstAu 100 mosss qosss posss
->   h <- zipWithM (hamiltonianP I.gConstAu mosss) (Prelude.map fst rsVs) (Prelude.map snd rsVs)
->   putStrLn $ show h
->   putStrLn $ show qosss
->   putStrLn $ show qsRepa
->   newQsPs <- stepN I.nStepsOuter I.gConstAu 100
->              mosss
->              qsRepa
->              psRepa
->   putStrLn "New qs ps repa"
->   putStrLn $ show newQsPs
->   S.fill (\_ -> return ()) (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps) (0 :: Int) I.nStepsOuter
+>   hPre <- hamiltonianY I.gConstAu ms qs ps
+>   putStrLn $ show hPre
+>   S.fill (\_ -> return ())
+>          (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps)
+>          (0 :: Int) I.nStepsOuter
+>   hPost <- hamiltonianY I.gConstAu ms qs ps
+>   putStrLn $ show hPost
 >   putStrLn "New qs ps yarr"
 >   psList <- YIO.toList ps
 >   putStrLn $ show psList
