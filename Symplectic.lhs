@@ -111,12 +111,16 @@ $$
 >   , main
 >   ) where
 
-> import Data.Array.Repa hiding ((++), zipWith)
+> import           Data.Array.Repa hiding ((++), zipWith)
 > import qualified Data.Array.Repa as Repa
-> import Control.Monad
-> import Control.Monad.Identity
-> import Text.Printf
+
+> import           Control.Monad
+> import           Control.Monad.Identity
+> import           Text.Printf
 > import qualified Data.List as L
+> import           System.Environment
+> import           System.Console.GetOpt
+> import           Data.Maybe( fromMaybe )
 
 > import qualified Data.Yarr as Y
 > import           Data.Yarr (loadS, dzip2, dzip3, F, L)
@@ -509,6 +513,9 @@ $$
 >     Z :.i :. j :. k = extent fss
 >     dt2             = extend (Any :. i :. k) $ fromListUnboxed Z [h]
 
+Yarr Implementation
+-------------------
+
 > vZero :: VecList N3 Double
 > vZero = V.replicate 0
 
@@ -762,8 +769,27 @@ dia = dia'
 Performance
 ===========
 
+> data YarrOrRepa = Repa | Yarr
+>   deriving Show
+>
+> data Options = Options  { optYarr :: YarrOrRepa
+>                         }
+>                
+> startOptions :: Options
+> startOptions = Options  { optYarr = Repa
+>                         }
+>
+> options :: [OptDescr (Options -> IO Options)]
+> options = [
+>   Option ['Y'] ["yarr"] (NoArg (\opt -> return opt { optYarr = Yarr })) "Use yarr"
+>   ]
+
 > main :: IO ()
 > main = do
+>   args <- getArgs
+>   let (actions, nonOpts, msgs) = getOpt RequireOrder options args
+>   opts <- foldl (>>=) (return startOptions) actions
+>   putStrLn $ show $ optYarr opts
 >   ms :: MassesY <- mosssY
 >   ps <- posssY
 >   qs <- qosssY
