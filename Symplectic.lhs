@@ -466,7 +466,7 @@ Repa Implementation
 >                  m (Array U DIM2 Double)
 > stepPositionP h qs ms ps = do
 >   do newQs <- computeP $ qs +^ (ps *^ h2 /^ ms2)
->      trace ("H: " ++ show h) $ return newQs
+>      return newQs
 >     where
 >       (Z :. i :. j) = extent ps
 >
@@ -526,13 +526,7 @@ Yarr Implementation
 >   loadS S.fill (dzip3 upd qs ms ps) qs
 >   where
 >     upd :: PositionY -> Mass -> MomentumY -> PositionY
->     upd q m p = trace (show h ++ "\n" ++
->                        show q ++ "\n" ++
->                        show p ++ "\n" ++
->                        show m ++ "\n" ++
->                        show foo) $ foo
->       where
->         foo = QY $ V.zipWith (+) (positionY q) (V.map (* (h / m)) (momentumY p))
+>     upd q m p = QY $ V.zipWith (+) (positionY q) (V.map (* (h / m)) (momentumY p))
 
 > stepMomentumY :: Double ->
 >                  Double ->
@@ -830,27 +824,23 @@ Performance
 >   opts <- foldl (>>=) (return startOptions) actions
 >   case optYarr opts of
 >     Repa -> do
->       -- putStrLn $ show $ toList qosss
->       putStrLn $ show $ toList posss
->       (qsPost, psPost) <- stepOnceP I.stepOuter
->                                     I.gConstAu
->                                     mosssP qosss posss
->       -- putStrLn $ show $ toList qsPost
->       putStrLn $ show $ toList psPost
->       return ()
+>       hPre <- hamiltonianP I.gConstAu mosssP qosss posss
+>       putStrLn $ show hPre
+>       (qsPost, psPost) <- stepN I.nStepsOuter I.gConstAu I.stepOuter
+>                           mosssP qosss posss
+>       hPost <- hamiltonianP I.gConstAu mosssP qsPost psPost
+>       putStrLn $ show hPost
 >     Yarr -> do
 >       ms :: MassesY <- mosssY
 >       ps <- posssY
 >       qs <- qosssY
->       qsList <- YIO.toList qs
->       putStrLn $ show qsList
->       psList <- YIO.toList ps
->       putStrLn $ show psList
->       stepOnceY I.gConstAu I.stepOuter ms qs ps
->       qsList <- YIO.toList qs
->       putStrLn $ show qsList
->       psList <- YIO.toList ps
->       putStrLn $ show psList
+>       hPre <- hamiltonianY I.gConstAu ms qs ps
+>       putStrLn $ show hPre
+>       S.fill (\_ -> return ())
+>              (\_ _ -> stepOnceY I.gConstAu I.stepOuter ms qs ps)
+>              (0 :: Int) I.nStepsOuter
+>       hPost <- hamiltonianY I.gConstAu ms qs ps
+>       putStrLn $ show hPost
 
 Appendices
 ==========
