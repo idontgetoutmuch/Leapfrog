@@ -99,6 +99,7 @@ $$
 > {-# LANGUAGE NoMonomorphismRestriction    #-}
 > {-# LANGUAGE FlexibleContexts             #-}
 > {-# LANGUAGE ScopedTypeVariables          #-}
+> {-# LANGUAGE GeneralizedNewtypeDeriving   #-}
 
 > module Symplectic (
 >     blsEE
@@ -122,6 +123,8 @@ $$
 > import           System.Console.GetOpt
 > import           Data.Maybe( fromMaybe )
 
+> import           Foreign.Storable
+
 > import qualified Data.Yarr as Y
 > import           Data.Yarr (loadS, dzip2, dzip3, F, L)
 > import           Data.Yarr.Repr.Delayed (UArray)
@@ -132,6 +135,8 @@ $$
 > import qualified Data.Yarr.Walk as W
 > 
 > import qualified Initial as I
+
+> import Debug.Trace
 
 > type Distance = Double
 > type Mass     = Double
@@ -461,7 +466,7 @@ Repa Implementation
 >                  m (Array U DIM2 Double)
 > stepPositionP h qs ms ps = do
 >   do newQs <- computeP $ qs +^ (ps *^ h2 /^ ms2)
->      return newQs
+>      trace ("H: " ++ show h) $ return newQs
 >     where
 >       (Z :. i :. j) = extent ps
 >
@@ -506,21 +511,28 @@ Yarr Implementation
 
 > type ArrayY = UArray F L S.Dim1
 
-> type PositionY   = VecList N3 Double
-> type MomentumY      = VecList N3 Double
-> type MomentaY = ArrayY MomentumY
-> type PositionsY  = ArrayY PositionY
-> 
-> type MassesY = ArrayY Mass
-
-> type ForceY = VecList N3 Double
-> type ForcesY = ArrayY ForceY
+> newtype PositionY  = QY { positionY :: VecList N3 Double }
+>   deriving (Show, Storable)
+> newtype MomentumY = PY { momentumY :: VecList N3 Double }
+>   deriving (Show, Storable)
+> type MomentaY     = ArrayY MomentumY
+> type PositionsY   = ArrayY PositionY
+> type MassesY      = ArrayY Mass
+> type ForceY       = VecList N3 Double
+> type ForcesY      = ArrayY ForceY
 
 > stepPositionY :: Double -> PositionsY -> MassesY -> MomentaY -> IO ()
-> stepPositionY h qs ms vs = loadS S.fill (dzip3 upd qs ms vs) qs
+> stepPositionY h qs ms ps = do
+>   loadS S.fill (dzip3 upd qs ms ps) qs
 >   where
 >     upd :: PositionY -> Mass -> MomentumY -> PositionY
->     upd q m p = V.zipWith (+) q (V.map (* (h / m)) p)
+>     upd q m p = trace (show h ++ "\n" ++
+>                        show q ++ "\n" ++
+>                        show p ++ "\n" ++
+>                        show m ++ "\n" ++
+>                        show foo) $ foo
+>       where
+>         foo = QY $ V.zipWith (+) (positionY q) (V.map (* (h / m)) (momentumY p))
 
 > stepMomentumY :: Double ->
 >                  Double ->
@@ -537,7 +549,7 @@ Yarr Implementation
 >         | otherwise = do
 >           pos2 <- qs `Y.index` j
 >           mass2 <- ms `Y.index` j
->           let deltas = V.zipWith (-) pos1 pos2
+>           let deltas = V.zipWith (-) (positionY pos1) (positionY pos2)
 >               dist2  = V.sum $ V.map (^ 2) deltas
 >               a = 1.0 / dist2
 >               b = (negate gConst) * mass1 * mass2 * a * (sqrt a)
@@ -550,7 +562,7 @@ Yarr Implementation
 >         mass <- ms `Y.index` i
 >         S.fill (forceBetween i pos mass) (forceAdd i) 0 nBodies
 >       upd momentum force =
->         V.zipWith (+) momentum (V.map (\f -> f * h) force)
+>         PY $ V.zipWith (+) (momentumY momentum) (V.map (\f -> f * h) force)
 >   S.fill (Y.index qs) force 0 nBodies
 >   loadS S.fill (dzip2 upd ps fs) ps
 
@@ -579,7 +591,7 @@ Yarr Implementation
 >           m1 <- ms `Y.index` i
 >           q2 <- qs `Y.index` j
 >           m2 <- ms `Y.index` j
->           let qDiffs = V.zipWith (-) q1 q2
+>           let qDiffs = V.zipWith (-) (positionY q1) (positionY q2)
 >               dist2  = V.sum $ V.map (^2) qDiffs
 >               a      = 1.0 / dist2
 >               b      = 0.5 * (negate gConst) * m1 * m2 * (sqrt a)
@@ -594,7 +606,8 @@ Yarr Implementation
 
 > kineticEnergy :: MassesY -> MomentaY-> IO Double
 > kineticEnergy ms ps = do
->   let preKes = Y.dmap V.sum $ dzip2 (V.zipWith (*)) ps ps
+>   let nakedPs = Y.delay $ Y.dmap momentumY ps
+>   let preKes = Y.dmap V.sum $ dzip2 (V.zipWith (*)) nakedPs nakedPs
 >       kes     = dzip2 (/) preKes (Y.delay ms)
 >   ke <- W.walk (W.reduceL S.foldl (+)) (return 0) kes
 >   return $ 0.5 * ke
@@ -622,10 +635,8 @@ Yarr Implementation
 >   newQs <- stepPositionP h qs ms newPs
 >   return (newQs, newPs)
 
-
 > -- FIXME
 > repDim2to3Outer a = extend (Any :. I.spaceDim) a
-
 
 The gravitational constant in SI units and in the units we use to
 simulate the 5 outermost planets of the solar system: Astronomical
@@ -644,6 +655,29 @@ Units, mass relative to the sun and earth days.
 >   where
 >     f _ (Z :. i :. j :. k) | i == j    = 0.0
 >                            | otherwise = x!(Z :. i :. j :. k)
+
+> kineticEnergyP :: Masses -> Momenta-> IO (Array D DIM0 Double)
+> kineticEnergyP ms ps = do
+>   preKes <- sumP $ ps *^ ps
+>   ke     <- sumP $ preKes /^ ms
+>   return $ Repa.map (* 0.5) ke
+>   
+> potentialEnergyP :: Double -> Masses -> Positions -> IO (Array U DIM1 Double)
+> potentialEnergyP gConst ms qs = do
+>   ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
+>   let ds   = Repa.map sqrt ds2
+>       is   = prodPairsMasses ms
+>       pess = zeroDiags $ Repa.map (* (0.5 * negate gConst)) $ is /^ ds
+>   pes <- sumP pess
+>   return pes
+
+> hamiltonianP' :: Double -> Masses -> Positions -> Momenta -> IO Double
+> hamiltonianP' gConst ms qs ps = do
+>   ke <- kineticEnergyP ms ps
+>   pes <- potentialEnergyP gConst ms qs
+>   pe  <- sumP pes
+>   te :: Array U DIM0 Double <- computeP $ ke +^ pe
+>   return $ head $ toList te
 
 > hamiltonianP :: Double -> Masses -> Positions -> Momenta -> IO Double
 > hamiltonianP gConst ms qs ps = do
@@ -696,8 +730,8 @@ Units, mass relative to the sun and earth days.
 The Outer Solar System
 ======================
 
-> mosss :: Array U DIM1 Double
-> mosss = fromListUnboxed (Z :. n) I.massesOuter
+> mosssP :: Array U DIM1 Double
+> mosssP = fromListUnboxed (Z :. n) I.massesOuter
 >   where
 >     n = length I.massesOuter
 > 
@@ -717,7 +751,8 @@ The Outer Solar System
 >   where
 >     nBodies = length I.initQsOuter
 >     f :: Int -> PositionY
->     f i = V.vl_3 ((I.initQsOuter!!i)!!0)
+>     f i = QY $
+>           V.vl_3 ((I.initQsOuter!!i)!!0)
 >                  ((I.initQsOuter!!i)!!1)
 >                  ((I.initQsOuter!!i)!!2)
 > 
@@ -732,15 +767,16 @@ The Outer Solar System
 >   where
 >     nBodies = length I.initPsOuter
 >     f :: Int -> MomentumY
->     f i = V.vl_3 ((I.initQsOuter!!i)!!0)
->                  ((I.initQsOuter!!i)!!1)
->                  ((I.initQsOuter!!i)!!2)
+>     f i = PY $
+>           V.vl_3 ((I.initPsOuter!!i)!!0)
+>                  ((I.initPsOuter!!i)!!1)
+>                  ((I.initPsOuter!!i)!!2)
 
 > sunIndex :: Int
-> sunIndex = let (Z :. i) = extent mosss in i
+> sunIndex = let (Z :. i) = extent mosssP in i
 
 > outerPlanets = runIdentity $ do
->   rsVs <- stepN' 2000 I.gConstAu 100 mosss qosss posss
+>   rsVs <- stepN' 2000 I.gConstAu 100 mosssP qosss posss
 >   let ps = Prelude.map fst rsVs
 >       xxs = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (0 :: Int))) ps)
 >                         [5,0,1,2,3,4]
@@ -794,31 +830,27 @@ Performance
 >   opts <- foldl (>>=) (return startOptions) actions
 >   case optYarr opts of
 >     Repa -> do
->       hPre <- hamiltonianP I.gConstAu mosss posss qosss
->       putStrLn $ show hPre
->       (qsPost, psPost) <- stepN I.nStepsOuter
->                                 I.gConstAu
->                                 I.stepOuter
->                                 mosss qosss posss
->       hPost <- hamiltonianP I.gConstAu mosss psPost qsPost
->       putStrLn $ show hPost
+>       -- putStrLn $ show $ toList qosss
+>       putStrLn $ show $ toList posss
+>       (qsPost, psPost) <- stepOnceP I.stepOuter
+>                                     I.gConstAu
+>                                     mosssP qosss posss
+>       -- putStrLn $ show $ toList qsPost
+>       putStrLn $ show $ toList psPost
 >       return ()
 >     Yarr -> do
 >       ms :: MassesY <- mosssY
 >       ps <- posssY
 >       qs <- qosssY
->       hPre <- hamiltonianY I.gConstAu ms qs ps
->       putStrLn $ show hPre
->       S.fill (\_ -> return ())
->              (\_ _ -> stepOnceY I.gConstAu I.stepOuter ms qs ps)
->              (0 :: Int) I.nStepsOuter
->       hPost <- hamiltonianY I.gConstAu ms qs ps
->       putStrLn $ show hPost
->       putStrLn "New qs ps yarr"
->       psList <- YIO.toList ps
->       putStrLn $ show psList
 >       qsList <- YIO.toList qs
 >       putStrLn $ show qsList
+>       psList <- YIO.toList ps
+>       putStrLn $ show psList
+>       stepOnceY I.gConstAu I.stepOuter ms qs ps
+>       qsList <- YIO.toList qs
+>       putStrLn $ show qsList
+>       psList <- YIO.toList ps
+>       putStrLn $ show psList
 
 Appendices
 ==========
