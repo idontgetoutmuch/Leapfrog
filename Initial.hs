@@ -17,6 +17,7 @@ module Initial (
   , massesTwoPlanets
   , initQs
   , initPs
+  , stepOuter
   , nStepsOuter
   , nBodiesOuter
   , massesOuter
@@ -67,6 +68,7 @@ earthPerihelion = 1.470983e11
 
 jupiterAphelion   :: Double
 jupiterAphelion   = 8.165208e11
+
 jupiterEccentrity :: Double
 jupiterEccentrity = 4.8775e-2
 
@@ -75,6 +77,7 @@ jupiterMajRad = (jupiterPerihelion + jupiterAphelion) / 2
 
 earthAphelion   :: Double
 earthAphelion   = 1.520982e11
+
 earthEccentrity :: Double
 earthEccentrity = 1.6711e-2
 
@@ -112,6 +115,9 @@ nStepsOuter = 200
 
 nBodiesOuter :: Int
 nBodiesOuter = length massesOuter
+
+stepOuter :: Double
+stepOuter = 100.0
 
 massesOuter :: [Double]
 massesOuter =

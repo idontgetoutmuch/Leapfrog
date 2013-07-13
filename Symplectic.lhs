@@ -446,6 +446,9 @@ p_k^{n+1} &= p_k^n + h G\sum_{j \neq k}m_k m_i \frac{q_k^{n+1} - q_j^{n+1}}{\|q_
 \end{aligned}
 $$
 
+Repa Implementation
+-------------------
+
 > stepPositionP :: forall a b c m . ( Monad m
 >                  , Source a Double
 >                  , Source b Double
@@ -464,24 +467,6 @@ $$
 >
 >       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >       ms2 = extend (Any :. j) ms
-
-> type ArrayY = UArray F L S.Dim1
-
-> type PositionY   = VecList N3 Double
-> type MomentumY      = VecList N3 Double
-> type MomentaY = ArrayY MomentumY
-> type PositionsY  = ArrayY PositionY
-> 
-> type MassesY = ArrayY Mass
-
-> type ForceY = VecList N3 Double
-> type ForcesY = ArrayY ForceY
-
-> stepPositionY :: Double -> PositionsY -> MassesY -> MomentaY -> IO ()
-> stepPositionY h qs ms vs = loadS S.fill (dzip3 upd qs ms vs) qs
->   where
->     upd :: PositionY -> Mass -> MomentumY -> PositionY
->     upd q m p = V.zipWith (+) q (V.map (* (h / m)) p)
 
 > stepMomentumP :: forall a b c m . ( Monad m
 >                  , Source a Double
@@ -518,6 +503,24 @@ Yarr Implementation
 
 > vZero :: VecList N3 Double
 > vZero = V.replicate 0
+
+> type ArrayY = UArray F L S.Dim1
+
+> type PositionY   = VecList N3 Double
+> type MomentumY      = VecList N3 Double
+> type MomentaY = ArrayY MomentumY
+> type PositionsY  = ArrayY PositionY
+> 
+> type MassesY = ArrayY Mass
+
+> type ForceY = VecList N3 Double
+> type ForcesY = ArrayY ForceY
+
+> stepPositionY :: Double -> PositionsY -> MassesY -> MomentaY -> IO ()
+> stepPositionY h qs ms vs = loadS S.fill (dzip3 upd qs ms vs) qs
+>   where
+>     upd :: PositionY -> Mass -> MomentumY -> PositionY
+>     upd q m p = V.zipWith (+) q (V.map (* (h / m)) p)
 
 > stepMomentumY :: Double ->
 >                  Double ->
@@ -642,7 +645,7 @@ Units, mass relative to the sun and earth days.
 >     f _ (Z :. i :. j :. k) | i == j    = 0.0
 >                            | otherwise = x!(Z :. i :. j :. k)
 
-> hamiltonianP :: Double -> Masses -> Momenta -> Positions -> IO Double
+> hamiltonianP :: Double -> Masses -> Positions -> Momenta -> IO Double
 > hamiltonianP gConst ms qs ps = do
 >   preKes <- sumP $ ps *^ ps
 >   ke     <- sumP $ preKes /^ ms
@@ -789,22 +792,33 @@ Performance
 >   args <- getArgs
 >   let (actions, nonOpts, msgs) = getOpt RequireOrder options args
 >   opts <- foldl (>>=) (return startOptions) actions
->   putStrLn $ show $ optYarr opts
->   ms :: MassesY <- mosssY
->   ps <- posssY
->   qs <- qosssY
->   hPre <- hamiltonianY I.gConstAu ms qs ps
->   putStrLn $ show hPre
->   S.fill (\_ -> return ())
->          (\_ _ -> stepOnceY I.gConstAu 100 ms qs ps)
->          (0 :: Int) I.nStepsOuter
->   hPost <- hamiltonianY I.gConstAu ms qs ps
->   putStrLn $ show hPost
->   putStrLn "New qs ps yarr"
->   psList <- YIO.toList ps
->   putStrLn $ show psList
->   qsList <- YIO.toList qs
->   putStrLn $ show qsList
+>   case optYarr opts of
+>     Repa -> do
+>       hPre <- hamiltonianP I.gConstAu mosss posss qosss
+>       putStrLn $ show hPre
+>       (qsPost, psPost) <- stepN I.nStepsOuter
+>                                 I.gConstAu
+>                                 I.stepOuter
+>                                 mosss qosss posss
+>       hPost <- hamiltonianP I.gConstAu mosss psPost qsPost
+>       putStrLn $ show hPost
+>       return ()
+>     Yarr -> do
+>       ms :: MassesY <- mosssY
+>       ps <- posssY
+>       qs <- qosssY
+>       hPre <- hamiltonianY I.gConstAu ms qs ps
+>       putStrLn $ show hPre
+>       S.fill (\_ -> return ())
+>              (\_ _ -> stepOnceY I.gConstAu I.stepOuter ms qs ps)
+>              (0 :: Int) I.nStepsOuter
+>       hPost <- hamiltonianY I.gConstAu ms qs ps
+>       putStrLn $ show hPost
+>       putStrLn "New qs ps yarr"
+>       psList <- YIO.toList ps
+>       putStrLn $ show psList
+>       qsList <- YIO.toList qs
+>       putStrLn $ show qsList
 
 Appendices
 ==========
