@@ -223,6 +223,83 @@ really looks very similar to the explicit Euler method.
 Theory
 ======
 
+We can think of the evolution of the pendulum as taking place on a
+2-dimensional manifold $\mathbb{S}^1 \times \mathbb{R}$ where $\mathbb{S}^1$ is the
+1-dimensional sphere (a circle) since the pendulum's space co-ordinate
+can only take on values $0 \leq q \lt 2\pi$.
+
+We can define a (symplectic) 2-form on this manifold:
+
+$$
+\omega = dq \wedge dp 
+$$
+
+Using this we can now produce a vector field from the Hamiltonian:
+$\cal{H} : \mathbb{S}^1 \times \mathbb{R} \longrightarrow \mathbb{R}$
+
+In order to this and without proof let us record the following fact.
+
+### Theorem
+
+Let $(M, \omega)$ be a symplectic manifold. Then there exists a
+bundle isomorphism $\tilde{\omega} : TM \longrightarrow T^*M$ defined
+by $\tilde{\omega}(X_p)(Y_p) = \omega_p(X_p, Y_p)$.
+
+This is analagous to the isomorphism one can derive in a (semi)
+Riemannian manifold with the metric in some sense playing the role of
+the 2-form (see [@o1983semi] for example).
+
+We assume the Hamiltonian to be a smooth function. We can form the
+1-form $dH$ and we can define the Hamiltonian vector field $X_H =
+\tilde{\omega}^{-1}(dH)$.
+
+We have
+
+$$
+d\cal{H} = \frac{\partial{\cal{H}}}{\partial q}dq +
+           \frac{\partial{\cal{H}}}{\partial p}dp
+$$
+
+Thus the corresponding vector field is given by
+
+$$
+X_\cal{H} =  \frac{\partial{\cal{H}}}{\partial q}\frac{\partial}{\partial q} -
+             \frac{\partial{\cal{H}}}{\partial p}\frac{\partial}{\partial p}
+$$
+
+The flow of this vector field is the solution to
+
+$$
+\begin{aligned}
+\dot{q} &=  \frac{\partial \cal{H}}{\partial p} \\
+\dot{p} &= -\frac{\partial \cal{H}}{\partial q} \\
+\end{aligned}
+$$
+
+In other words by using the symplectic 2-form and the Hamiltonian we
+have regained Hamilton's equations.
+
+### Theorem
+
+$\cal{H}$ is constant on flows of $X_\cal{H}$.
+
+#### Proof
+
+$$
+X_{\cal{H}}{\cal{H}} = \omega(X_{\cal{H}}, X_{\cal{H}}) = 0
+$$
+
+since $\omega$ is alternating.
+
+When the Hamiltonian function represents the energy of the system
+being studied then this says that energy remains constant on
+flows. That is, as the system evolves according to the flow $\phi_t$
+given by the vector field $X_{\cal{H}}$ then $\cal{H}(q_t, p_t) =
+\cal{H}(\phi_t(q_0, p_0)) = \cal{H}(q_0, p_0)$.
+
+Thus it makes sense to look for numeric methods which maintain this
+invariant.
+
 ```{.dia width='800'}
 illustrateBezier c0 c1 c2 c3 x2 x3
     = endpt  # translate x3
@@ -305,19 +382,6 @@ $$
 
 Hamiltonian Vector Fields
 -------------------------
-
-Without proof let us record the following fact. Let $(M, \omega)$ be a
-symplectic manifold. Then there exists a bundle isomorphism
-$\tilde{\omega} : TM \longrightarrow T^*M$ defined by
-$\tilde{\omega}(X_p)(Y_p) = \omega_p(X_p, Y_p)$.
-
-This is analagous to the isomorphism one can derive in a (semi)
-Riemannian manifold with the metric in some sense playing the role of
-the 2-form (see [@o1983semi] for example).
-
-Now suppose we have a smooth function $H : M \longrightarrow
-\mathbb{R}$ then we can form the 1-form $dH$ and we can define the
-Hamiltonian vector field $X_H = \tilde{\omega}^{-1}(dH)$.
 
 In co-ordinates we have:
 
@@ -1043,6 +1107,13 @@ dia' = test tickSize [ (cellColour0, map (\(x, _, _) -> x) simPlanets)
 
 dia = dia'
 ```
+
+Notes
+-----
+
+Symplectic integrators possess as a conserved quantity a Hamiltonian
+which is slightly perturbed from the original one
+
 
 Bibliography
 ------------
