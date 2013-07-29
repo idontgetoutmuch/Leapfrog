@@ -133,7 +133,7 @@ $$
 > import           Data.Yarr.Utils.FixedVector (VecList, N3)
 > import qualified Data.Yarr.IO.List as YIO
 > import qualified Data.Yarr.Walk as W
-> 
+>
 > import qualified Initial as I
 
 > import Debug.Trace
@@ -231,7 +231,7 @@ can only take on values $0 \leq q \lt 2\pi$.
 We can define a (symplectic) 2-form on this manifold:
 
 $$
-\omega = dq \wedge dp 
+\omega = dq \wedge dp
 $$
 
 Using this we can now produce a vector field from the Hamiltonian:
@@ -281,7 +281,7 @@ have regained Hamilton's equations.
 
 ### Theorem
 
-$\cal{H}$ is constant on flows of $X_\cal{H}$.
+*$\cal{H}$ is constant on flows of $X_\cal{H}$.*
 
 #### Proof
 
@@ -289,7 +289,7 @@ $$
 X_{\cal{H}}{\cal{H}} = \omega(X_{\cal{H}}, X_{\cal{H}}) = 0
 $$
 
-since $\omega$ is alternating.
+since $\omega$ is alternating. $\blacksquare$
 
 When the Hamiltonian function represents the energy of the system
 being studied then this says that energy remains constant on
@@ -453,6 +453,23 @@ $$
 \begin{bmatrix}
 1 & -\frac{\partial f}{\partial v} \\
 0 & 1 + \frac{\partial g}{\partial v}
+\end{bmatrix}
+$$
+
+Now substitute in the functions for the Euler symplectic method and we
+obtain
+
+$$
+\begin{bmatrix}
+1 + hH_{qp}  & 0 \\
+-hG_{pp} & 1
+\end{bmatrix}
+\,
+\frac{\partial \big(p_{n+1},q_{n+1}\big)}{\partial \big(p_{n},q_{n}\big)}
+=
+\begin{bmatrix}
+1 & -hH_{qq} \\
+0 & 1 + hH_{qp}
 \end{bmatrix}
 $$
 
@@ -708,7 +725,7 @@ Units, mass relative to the sun and earth days.
 >   where
 >     f _ (Z :. i :. j) | i == j    = 0.0
 >                       | otherwise = x!(Z :. i :. j)
->                                     
+>
 > zeroDiags' x = traverse x id f
 >   where
 >     f _ (Z :. i :. j :. k) | i == j    = 0.0
@@ -719,7 +736,7 @@ Units, mass relative to the sun and earth days.
 >   preKes <- sumP $ ps *^ ps
 >   ke     <- sumP $ preKes /^ ms
 >   return $ Repa.map (* 0.5) ke
->   
+>
 > potentialEnergyP :: Double -> Masses -> Positions -> IO (Array U DIM1 Double)
 > potentialEnergyP gConst ms qs = do
 >   ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
@@ -792,7 +809,7 @@ The Outer Solar System
 > mosssP = fromListUnboxed (Z :. n) I.massesOuter
 >   where
 >     n = length I.massesOuter
-> 
+>
 > mosssY :: IO (UArray F L S.Dim1 Double)
 > mosssY = YIO.fromList n I.massesOuter
 >   where
@@ -803,7 +820,7 @@ The Outer Solar System
 >   where
 >     xs = concat I.initQsOuter
 >     n  = length xs `div` I.spaceDim
-> 
+>
 > qosssY :: IO PositionsY
 > qosssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
 >   where
@@ -813,13 +830,13 @@ The Outer Solar System
 >           V.vl_3 ((I.initQsOuter!!i)!!0)
 >                  ((I.initQsOuter!!i)!!1)
 >                  ((I.initQsOuter!!i)!!2)
-> 
-> posss :: Array U DIM2 Double        
+>
+> posss :: Array U DIM2 Double
 > posss = fromListUnboxed (Z :. n :. I.spaceDim) xs
 >   where
 >     xs = concat I.initPsOuter
 >     n  = length xs `div` I.spaceDim
->     
+>
 > posssY :: IO MomentaY
 > posssY = YIO.fromList nBodies $ Prelude.map f [0 .. nBodies - 1]
 >   where
@@ -871,7 +888,7 @@ Performance
 >
 > data Options = Options  { optYarr :: YarrOrRepa
 >                         }
->                
+>
 > startOptions :: Options
 > startOptions = Options  { optYarr = Repa
 >                         }
