@@ -473,6 +473,26 @@ $$
 \end{bmatrix}
 $$
 
+The reader can then check by a straightforward but tedious calculation
+that
+
+$$
+\frac{\partial \big(p_{n+1},q_{n+1}\big)}{\partial \big(p_{n},q_{n}\big)}^\top J \frac{\partial \big(p_{n+1},q_{n+1}\big)}{\partial \big(p_{n},q_{n}\big)} = J
+$$
+
+where
+
+$$
+J
+=
+\begin{bmatrix}
+ 0 & 1 \\
+-1 & 1
+\end{bmatrix}
+$$
+
+Thus the symplectic Euler method really is symplectic.
+
 > runSE :: Double -> Double -> [(Double, Double)]
 > runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
 
