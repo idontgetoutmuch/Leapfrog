@@ -2,7 +2,7 @@
 % Dominic Steinitz
 % 7th June 2013
 
-This article attempts to show that Haskell [@Marlow_haskell2010]
+This article attempts to show that Haskell [@Hudak:2007:HHL:1238844.1238856]
 performs reasonably well on numerical problems.
 
 When I started to do this, it seemed straightforward enough: pick a
@@ -519,7 +519,8 @@ $$
 Thus the explicit Euler method is not symplectic i.e., does not
 preserve areas. Thus the path traversed is not an integral curve of
 the Hamiltonian vector field. We can see this in the diagram: the path
-spirals outwards.
+spirals outwards. More details and examples can be found in
+[@IAUS:152:407Y; @Cross:2005:SIOC].
 
 > runSE :: Double -> Double -> [(Double, Double)]
 > runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
