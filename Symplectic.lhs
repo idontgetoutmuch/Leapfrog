@@ -389,7 +389,7 @@ $$
 \omega\bigg(\frac{\partial}{\partial x_i}, \frac{\partial}{\partial x_j}\bigg) = d\xi^i \wedge dx^i\bigg(\frac{\partial}{\partial x_i}, \frac{\partial}{\partial x_j}\bigg) = d\xi^i\bigg(\frac{\partial}{\partial x_i}\bigg)dx^i\bigg(\frac{\partial}{\partial x_j}\bigg) - d\xi^i\bigg(\frac{\partial}{\partial x_j}\bigg)dx^i\bigg(\frac{\partial}{\partial x_i}\bigg) = 0
 $$
 
-Euler Symplectic
+Symplectic Euler
 ----------------
 
 $$
@@ -487,11 +487,39 @@ J
 =
 \begin{bmatrix}
  0 & 1 \\
--1 & 1
+-1 & 0
 \end{bmatrix}
 $$
 
 Thus the symplectic Euler method really is symplectic.
+
+On the other hand for the explicit Euler for this particular example
+we have
+
+$$
+\frac{\partial \big(p_{n+1},q_{n+1}\big)}{\partial \big(p_{n},q_{n}\big)}
+ =
+\begin{bmatrix}
+ 1 & h / ml^2 \\
+-hmglcos\theta_n & 1
+\end{bmatrix}
+$$
+
+And a simple calculation shows that
+
+$$
+\frac{\partial \big(p_{n+1},q_{n+1}\big)}{\partial \big(p_{n},q_{n}\big)}^\top J \frac{\partial \big(p_{n+1},q_{n+1}\big)}{\partial \big(p_{n},q_{n}\big)}
+=
+\begin{bmatrix}
+ 0 & 1 + h^2\cos\theta\\
+-1 - h^2\cos\theta & 0
+\end{bmatrix}
+$$
+
+Thus the explicit Euler method is not symplectic i.e., does not
+preserve areas. Thus the path traversed is not an integral curve of
+the Hamiltonian vector field. We can see this in the diagram: the path
+spirals outwards.
 
 > runSE :: Double -> Double -> [(Double, Double)]
 > runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
