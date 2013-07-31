@@ -12,13 +12,13 @@ been fascinated by the precession of the perihelion of Mercury (which
 is mainly caused by the pull of the other planets in the Solar System)
 and because this admits of at least two different methods of numerical
 solution both of which I hope will show the power of Haskell in this
-area. This led to the selection of algorithm and I read that one
-should prefer a symplectic method such as the Leapfrog which conserves
-the energy of a system (a highly desirable requirement when modelling
-orbital dynamics). My conscience would not let me write about such a
-method without being able to explain it. This led into the Hamiltonian
-formulation of classical mechanics, symplectic manifolds and
-symplectic (numerical) methods.
+area. This led to the selection of a suitable algorithm and I read
+that one should prefer a symplectic method such as the Leapfrog which
+conserves the energy of a system (a highly desirable requirement when
+modelling orbital dynamics). My conscience would not let me write
+about such a method without being able to explain it. This led into
+the Hamiltonian formulation of classical mechanics, symplectic
+manifolds and symplectic (numerical) methods.
 
 The reader interested in the Haskell implementations and performance
 comparisons with other programming languages can read the introduction
@@ -27,7 +27,7 @@ mechanics, symplectic geometery and numerical analysis and can only
 hope I have not traduced their subjects too much.
 
 Introduction
-------------
+============
 
 Forget about Newton and suppose you are told that the way to do
 mechanics is to write down the total energy of the system in which you
@@ -92,7 +92,8 @@ p_{n+1}      &= -hmgl\sin\theta_n
 \end{aligned}
 $$
 
- ## Haskell for Explicit Euler
+Haskell for Explicit Euler
+--------------------------
 
 First we need some pragmas, exports (required to create the diagrams)
 and imports.
@@ -181,6 +182,14 @@ ensures we don't go over the top.
 > runEE :: Double -> Double -> [(Double, Double)]
 > runEE initP initTheta = iterate (uncurry (stepOnceEE m l)) (initP, initTheta)
 
+The diagram below plots the position of the pendulum (the angle it
+makes with the vertical) against momentum, both axes normalised so
+that the maximum position and momentum are 1.0. We would expect that
+the trajectory would form a closed path that is traversed indefinitely
+as the pendulum swings back and forth. Instead we see that trajectory
+gradually spirals outward showing that energy is not conserved but
+steadily increases over time, an undesirable state of affairs.
+
 ```{.dia width='800'}
 import Symplectic
 import SymplecticDia
@@ -191,8 +200,8 @@ diaEE = test tickSize [ (cellColourEE0, take nPlotPoints $ blsEE)
 dia = diaEE
 ```
 
-As we can see from the diagram above, energy is not conserved but
-increases steadily over time, an undesirable state of affairs.
+Haskell for Symplectic Euler
+----------------------------
 
 Instead let us apply the the symplectic Euler method:
 
@@ -203,11 +212,18 @@ p_{n+1} = p_n - hmgl\sin\theta_n \\
 \end{aligned}
 $$
 
+The functions to update the position and momentum.
+
 > stepMomentum :: Double -> Double -> Double -> Double -> Double
 > stepMomentum m l p q = p -  h * m * g * l * sin q
 
 > stepPosition :: Double -> Double -> Double -> Double -> Double
 > stepPosition m l p q = q + h * p / (m * l^2)
+
+The symplectic Euler method itself. Notice that only the update
+function for momentum uses both the previous position and momentum;
+the update function for position uses the previous position but the
+new momentum.
 
 > stepOnce :: Double -> Double -> Double -> Double -> (Double, Double)
 > stepOnce m l p q = (newP, newQ)
@@ -215,6 +231,11 @@ $$
 >     newP = stepMomentum m l p q
 >     newQ = stepPosition m l newP q
 
+The diagram below plots the position of the pendulum (the angle it
+makes with the vertical) against momentum, both axes normalised so
+that the maximum position and momentum are 1.0. We would expect that
+the trajectory would form a closed path that is traversed indefinitely
+as the pendulum swings back and forth. And indeed this is the case.
 
 ```{.dia width='800'}
 import Symplectic
@@ -227,7 +248,7 @@ dia' = test tickSize [ (cellColour0, take nPlotPoints $ bls)
 dia = dia'
 ```
 
-In this case the energy is conserved so this looks like a good
+So in this case the energy is conserved so this looks like a good
 candidate for simulating orbital dynamics. But why does this work? It
 really looks very similar to the explicit Euler method.
 
@@ -250,7 +271,7 @@ $\cal{H} : \mathbb{S}^1 \times \mathbb{R} \longrightarrow \mathbb{R}$
 
 In order to this and without proof let us record the following fact.
 
- ### Theorem
+**Theorem**
 
 Let $(M, \omega)$ be a symplectic manifold. Then there exists a
 bundle isomorphism $\tilde{\omega} : TM \longrightarrow T^*M$ defined
@@ -290,11 +311,11 @@ $$
 In other words by using the symplectic 2-form and the Hamiltonian we
 have regained Hamilton's equations.
 
- ### Theorem
+**Theorem**
 
 *$\cal{H}$ is constant on flows of $X_\cal{H}$.*
 
- #### Proof
+*Proof*
 
 $$
 X_{\cal{H}}{\cal{H}} = \omega(X_{\cal{H}}, X_{\cal{H}}) = 0
