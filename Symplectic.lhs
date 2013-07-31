@@ -92,6 +92,11 @@ p_{n+1}      &= -hmgl\sin\theta_n
 \end{aligned}
 $$
 
+## Haskell for Explicit Euler
+
+First we need some pragmas, exports (required to create the diagrams)
+and imports.
+
 > {-# OPTIONS_GHC -Wall                     #-}
 > {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
 > {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
@@ -134,10 +139,16 @@ $$
 >
 > import qualified Initial as I
 
+Some type synomyms although it is doubtful how useful these are since
+the generalized co-ordinates and momenta that one uses with
+Hamiltonian methods can have different units depending on how the
+physical problem is formulated.
 
 > type Distance = Double
 > type Mass     = Double
 > type Speed    = Double
+
+The functions to update the position and momentum.
 
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
@@ -145,17 +156,27 @@ $$
 > stepPositionEE :: Double -> Double -> Double -> Double -> Double
 > stepPositionEE m l p q = q + h * p / (m * l^2)
 
+The explicit Euler method itself. Notice that both update functions
+use the previous position and momentum.
+
 > stepOnceEE :: Double -> Double -> Double -> Double -> (Double, Double)
 > stepOnceEE m l p q = (newP, newQ)
 >   where
 >     newP = stepMomentumEE m l p q
 >     newQ = stepPositionEE m l p q
 
+The physical data for our problem and also the step length for the numerical method.
+
 > h, m, l, g :: Double
-> h = 0.01  -- Seconds
+> h = 0.01 -- Seconds
 > l = 1.0  -- Metres
 > m = 1.0  -- Kilograms
 > g = 9.81 -- Metres * Seconds^-2
+
+FIXME: Check this.
+
+Let's start our pendulum at the bottom with an angular velocity that
+ensures we don't go over the top.
 
 > initTheta, initThetaDot, initP :: Double
 > initTheta    = 0.0
@@ -234,7 +255,7 @@ $\cal{H} : \mathbb{S}^1 \times \mathbb{R} \longrightarrow \mathbb{R}$
 
 In order to this and without proof let us record the following fact.
 
- ### Theorem
+### Theorem
 
 Let $(M, \omega)$ be a symplectic manifold. Then there exists a
 bundle isomorphism $\tilde{\omega} : TM \longrightarrow T^*M$ defined
@@ -274,11 +295,11 @@ $$
 In other words by using the symplectic 2-form and the Hamiltonian we
 have regained Hamilton's equations.
 
- ### Theorem
+### Theorem
 
 *$\cal{H}$ is constant on flows of $X_\cal{H}$.*
 
- #### Proof
+#### Proof
 
 $$
 X_{\cal{H}}{\cal{H}} = \omega(X_{\cal{H}}, X_{\cal{H}}) = 0
