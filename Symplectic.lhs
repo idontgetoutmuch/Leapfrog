@@ -92,7 +92,7 @@ p_{n+1}      &= -hmgl\sin\theta_n
 \end{aligned}
 $$
 
-## Haskell for Explicit Euler
+ ## Haskell for Explicit Euler
 
 First we need some pragmas, exports (required to create the diagrams)
 and imports.
@@ -109,10 +109,7 @@ and imports.
 
 > module Symplectic (
 >     blsEE
->   , tls
 >   , bls
->   , trs
->   , brs
 >   , simPlanets
 >   , outerPlanets
 >   , main
@@ -172,8 +169,6 @@ The physical data for our problem and also the step length for the numerical met
 > l = 1.0  -- Metres
 > m = 1.0  -- Kilograms
 > g = 9.81 -- Metres * Seconds^-2
-
-FIXME: Check this.
 
 Let's start our pendulum at the bottom with an angular velocity that
 ensures we don't go over the top.
@@ -255,7 +250,7 @@ $\cal{H} : \mathbb{S}^1 \times \mathbb{R} \longrightarrow \mathbb{R}$
 
 In order to this and without proof let us record the following fact.
 
-### Theorem
+ ### Theorem
 
 Let $(M, \omega)$ be a symplectic manifold. Then there exists a
 bundle isomorphism $\tilde{\omega} : TM \longrightarrow T^*M$ defined
@@ -295,11 +290,11 @@ $$
 In other words by using the symplectic 2-form and the Hamiltonian we
 have regained Hamilton's equations.
 
-### Theorem
+ ### Theorem
 
 *$\cal{H}$ is constant on flows of $X_\cal{H}$.*
 
-#### Proof
+ #### Proof
 
 $$
 X_{\cal{H}}{\cal{H}} = \omega(X_{\cal{H}}, X_{\cal{H}}) = 0
@@ -541,27 +536,9 @@ spirals outwards. More details and examples can be found in
 > runSE :: Double -> Double -> [(Double, Double)]
 > runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
 
-> bls, blsEE, brs, trs, tls :: [(Double, Double)]
+> bls, blsEE :: [(Double, Double)]
 > bls   = runSE initP         initTheta
 > blsEE = runEE initP         initTheta
-> brs   = runSE (initP + 1.0) initTheta
-> trs   = runSE (initP + 1.0) (initTheta + 1.0)
-> tls   = runSE initP         (initTheta + 1.0)
-
-```{.dia width='800'}
-import Symplectic
-import SymplecticDia
-
-dia' :: DiagramC
-dia' = test tickSize [ (cellColour0, take nPlotPoints $ bls)
-                     , (cellColourEE0, take nPlotPoints $ blsEE)
-                     , (cellColour1, take nPlotPoints $ brs)
-                     , (cellColour2, take nPlotPoints $ trs)
-                     , (cellColour3, take nPlotPoints $ tls)
-                     ]
-
-dia = dia'
-```
 
 Planetary Motion
 ================
