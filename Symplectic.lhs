@@ -92,14 +92,15 @@ p_{n+1}      &= -hmgl\sin\theta_n
 \end{aligned}
 $$
 
-{-# OPTIONS_GHC -Wall                     #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
-{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+> {-# OPTIONS_GHC -Wall                     #-}
+> {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+> {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
 
 > {-# LANGUAGE NoMonomorphismRestriction    #-}
 > {-# LANGUAGE FlexibleContexts             #-}
 > {-# LANGUAGE ScopedTypeVariables          #-}
 > {-# LANGUAGE GeneralizedNewtypeDeriving   #-}
+> {-# LANGUAGE TypeOperators                #-}
 
 > module Symplectic (
 >     blsEE
@@ -117,11 +118,8 @@ $$
 
 > import           Control.Monad
 > import           Control.Monad.Identity
-> import           Text.Printf
-> import qualified Data.List as L
 > import           System.Environment
 > import           System.Console.GetOpt
-> import           Data.Maybe( fromMaybe )
 
 > import           Foreign.Storable
 
@@ -136,13 +134,10 @@ $$
 >
 > import qualified Initial as I
 
-> import Debug.Trace
 
 > type Distance = Double
 > type Mass     = Double
-> type Force    = Double
 > type Speed    = Double
-> type Energy   = Double
 
 > stepMomentumEE :: Double -> Double -> Double -> Double -> Double
 > stepMomentumEE m l p q = p -  h * m * g * l * sin q
@@ -239,7 +234,7 @@ $\cal{H} : \mathbb{S}^1 \times \mathbb{R} \longrightarrow \mathbb{R}$
 
 In order to this and without proof let us record the following fact.
 
-### Theorem
+ ### Theorem
 
 Let $(M, \omega)$ be a symplectic manifold. Then there exists a
 bundle isomorphism $\tilde{\omega} : TM \longrightarrow T^*M$ defined
@@ -279,11 +274,11 @@ $$
 In other words by using the symplectic 2-form and the Hamiltonian we
 have regained Hamilton's equations.
 
-### Theorem
+ ### Theorem
 
 *$\cal{H}$ is constant on flows of $X_\cal{H}$.*
 
-#### Proof
+ #### Proof
 
 $$
 X_{\cal{H}}{\cal{H}} = \omega(X_{\cal{H}}, X_{\cal{H}}) = 0
@@ -525,14 +520,12 @@ spirals outwards. More details and examples can be found in
 > runSE :: Double -> Double -> [(Double, Double)]
 > runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
 
+> bls, blsEE, brs, trs, tls :: [(Double, Double)]
 > bls   = runSE initP         initTheta
 > blsEE = runEE initP         initTheta
 > brs   = runSE (initP + 1.0) initTheta
 > trs   = runSE (initP + 1.0) (initTheta + 1.0)
 > tls   = runSE initP         (initTheta + 1.0)
->
-> hamiltonian :: Double -> Double -> Double -> Double -> Double
-> hamiltonian m l p q = (p^2 / (2 * m * l^2)) + (m * g * l * (1 - cos q))
 
 ```{.dia width='800'}
 import Symplectic
@@ -630,8 +623,8 @@ Repa Implementation
 >     preFs = Repa.map (* (negate gConst)) $
 >             qDiffs /^ ds
 >     fss = is *^ preFs
->     Z :.i :. j :. k = extent fss
->     dt2             = extend (Any :. i :. k) $ fromListUnboxed Z [h]
+>     Z :.i :. _j :. k = extent fss
+>     dt2              = extend (Any :. i :. k) $ fromListUnboxed Z [h]
 
 Yarr Implementation
 -------------------
@@ -760,6 +753,9 @@ Yarr Implementation
 >   return (newQs, newPs)
 
 > -- FIXME
+> repDim2to3Outer :: forall r e sh.
+>                    (Shape sh, Source r e) =>
+>                    Array r sh e -> Array D (sh :. Int) e
 > repDim2to3Outer a = extend (Any :. I.spaceDim) a
 
 The gravitational constant in SI units and in the units we use to
@@ -770,11 +766,17 @@ Units, mass relative to the sun and earth days.
 > type Positions = Array U DIM2 Double
 > type Masses    = Array U DIM1 Double
 >
+> zeroDiags :: Source a Double =>
+>              Array a DIM2 Double ->
+>              Array D DIM2 Double
 > zeroDiags x = traverse x id f
 >   where
 >     f _ (Z :. i :. j) | i == j    = 0.0
 >                       | otherwise = x!(Z :. i :. j)
 >
+> zeroDiags' :: Source a Double =>
+>               Array a DIM3 Double ->
+>               Array D DIM3 Double
 > zeroDiags' x = traverse x id f
 >   where
 >     f _ (Z :. i :. j :. k) | i == j    = 0.0
@@ -896,9 +898,7 @@ The Outer Solar System
 >                  ((I.initPsOuter!!i)!!1)
 >                  ((I.initPsOuter!!i)!!2)
 
-> sunIndex :: Int
-> sunIndex = let (Z :. i) = extent mosssP in i
-
+> outerPlanets :: [[(Double, Double)]]
 > outerPlanets = runIdentity $ do
 >   rsVs <- stepN' 2000 I.gConstAu 100 mosssP qosss posss
 >   let ps = Prelude.map fst rsVs
@@ -950,7 +950,7 @@ Performance
 > main :: IO ()
 > main = do
 >   args <- getArgs
->   let (actions, nonOpts, msgs) = getOpt RequireOrder options args
+>   let (actions, _nonOpts, _msgs) = getOpt RequireOrder options args
 >   opts <- foldl (>>=) (return startOptions) actions
 >   case optYarr opts of
 >     Repa -> do
@@ -1105,7 +1105,7 @@ For completeness we give the Sun's starting conditions.
 > initPs :: Array U DIM2 Double
 > initPs = runIdentity $ computeP $ ms2 *^ initVs
 >   where
->     (Z :. i :. j) = extent initVs
+>     (Z :. _i :. j) = extent initVs
 >     ms2 = extend (Any :. j) masses
 
 > initRs :: Array U DIM2 Distance
@@ -1149,6 +1149,9 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >       rsVs <- stepAux (n-1) newRs newVs
 >       return $ (newRs, newVs) : rsVs
 
+> simPlanets :: [((Double, Double),
+>                 (Double, Double),
+>                 (Double, Double))]
 > simPlanets = runIdentity $ do
 >   rsVs <- stepN' I.nStepsOuter I.gConst I.stepTwoPlanets masses initRs initPs
 >   let ps = Prelude.map fst rsVs
