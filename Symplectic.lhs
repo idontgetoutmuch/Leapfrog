@@ -109,9 +109,9 @@ and imports.
 > {-# LANGUAGE TypeOperators                #-}
 
 > module Symplectic (
->     blsEE
->   , bls
->   , simPlanets
+>     pendulumEE
+>   , pendulumSE
+>   , jupiterEarth
 >   , outerPlanets
 >   , main
 >   ) where
@@ -195,7 +195,7 @@ import Symplectic
 import SymplecticDia
 
 diaEE :: DiagramC
-diaEE = test tickSize [ (cellColourEE0, take nPlotPoints $ blsEE)
+diaEE = test tickSize [ (cellColourEE0, take nPlotPoints $ pendulumEE)
                       ]
 dia = diaEE
 ```
@@ -242,7 +242,7 @@ import Symplectic
 import SymplecticDia
 
 dia' :: DiagramC
-dia' = test tickSize [ (cellColour0, take nPlotPoints $ bls)
+dia' = test tickSize [ (cellColour0, take nPlotPoints $ pendulumSE)
                      ]
 
 dia = dia'
@@ -275,7 +275,7 @@ In order to this and without proof let us record the following fact.
 
 Let $(M, \omega)$ be a symplectic manifold. Then there exists a
 bundle isomorphism $\tilde{\omega} : TM \longrightarrow T^*M$ defined
-by $\tilde{\omega}(X_p)(Y_p) = \omega_p(X_p, Y_p)$.
+by $\tilde{\omega}(X_p)(Y_p) = \omega_p(X_p, Y_p)$. $\blacksquare$
 
 This is analagous to the isomorphism one can derive in a (semi)
 Riemannian manifold with the metric in some sense playing the role of
@@ -496,9 +496,9 @@ spirals outwards. More details and examples can be found in
 > runSE :: Double -> Double -> [(Double, Double)]
 > runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
 
-> bls, blsEE :: [(Double, Double)]
-> bls   = runSE initP         initTheta
-> blsEE = runEE initP         initTheta
+> pendulumSE, pendulumEE :: [(Double, Double)]
+> pendulumSE = runSE initP initTheta
+> pendulumEE = runEE initP initTheta
 
 Planetary Motion
 ================
@@ -1107,10 +1107,10 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >       rsVs <- stepAux (n-1) newRs newVs
 >       return $ (newRs, newVs) : rsVs
 
-> simPlanets :: [((Double, Double),
->                 (Double, Double),
->                 (Double, Double))]
-> simPlanets = runIdentity $ do
+> jupiterEarth :: [((Double, Double),
+>                   (Double, Double),
+>                   (Double, Double))]
+> jupiterEarth = runIdentity $ do
 >   rsVs <- stepN' I.nStepsOuter I.gConst I.stepTwoPlanets masses initRs initPs
 >   let ps = Prelude.map fst rsVs
 >       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
@@ -1127,9 +1127,9 @@ import SymplecticDia
 
 dia' :: DiagramC
 
-dia' = test tickSize [ (cellColour0, map (\(x, _, _) -> x) simPlanets)
-                     , (cellColour1, map (\(_, y, _) -> y) simPlanets)
-                     , (cellColour2, map (\(_, _, z) -> z) simPlanets)
+dia' = test tickSize [ (cellColour0, map (\(x, _, _) -> x) jupiterEarth)
+                     , (cellColour1, map (\(_, y, _) -> y) jupiterEarth)
+                     , (cellColour2, map (\(_, _, z) -> z) jupiterEarth)
                      ]
 
 dia = dia'
