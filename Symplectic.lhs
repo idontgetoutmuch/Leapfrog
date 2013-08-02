@@ -755,27 +755,13 @@ Units, mass relative to the sun and earth days.
 >   pes <- sumP pess
 >   return pes
 
-> hamiltonianP' :: Double -> Masses -> Positions -> Momenta -> IO Double
-> hamiltonianP' gConst ms qs ps = do
+> hamiltonianP :: Double -> Masses -> Positions -> Momenta -> IO Double
+> hamiltonianP gConst ms qs ps = do
 >   ke <- kineticEnergyP ms ps
 >   pes <- potentialEnergyP gConst ms qs
 >   pe  <- sumP pes
 >   te :: Array U DIM0 Double <- computeP $ ke +^ pe
 >   return $ head $ toList te
-
-> hamiltonianP :: Double -> Masses -> Positions -> Momenta -> IO Double
-> hamiltonianP gConst ms qs ps = do
->   preKes <- sumP $ ps *^ ps
->   ke     <- sumP $ preKes /^ ms
->
->   ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
->   let ds   = Repa.map sqrt ds2
->       is   = prodPairsMasses ms
->       pess = zeroDiags $ Repa.map (* (negate gConst)) $ is /^ ds
->   pes <- sumP pess
->   pe  <- sumP pes
->   te :: Array U DIM0 Double <- computeP $ ke +^ pe
->   return $ head $ toList $ Repa.map (* 0.5) te
 
 > repDim1To2Outer :: Source a Double =>
 >                    Array a DIM1 Double ->
