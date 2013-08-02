@@ -255,12 +255,21 @@ really looks very similar to the explicit Euler method.
 Theory
 ======
 
-We can think of the evolution of the pendulum as taking place on a
-2-dimensional manifold $\mathbb{S}^1 \times \mathbb{R}$ where $\mathbb{S}^1$ is the
-1-dimensional sphere (a circle) since the pendulum's space co-ordinate
-can only take on values $0 \leq q \lt 2\pi$.
+Warning: some handwaving as a full and formal exposition of the theory
+would take much more space than can be contained in this blog article.
 
-We can define a (symplectic) 2-form on this manifold:
+We can think of the evolution of the pendulum as taking place on a
+2-dimensional manifold
+[manifold](http://en.wikipedia.org/wiki/Manifold "Wikipedia
+definition") $\mathbb{S}^1 \times \mathbb{R}$ where $\mathbb{S}^1$ is
+the 1-dimensional sphere (a circle) since the pendulum's space
+co-ordinate can only take on values $0 \leq q \lt 2\pi$.
+
+We can define a
+([symplectic](https://en.wikipedia.org/wiki/Symplectic_manifold
+"Wikipedia definition"))
+[2-form](https://en.wikipedia.org/wiki/Differential_form "Wikipedia
+definition") on this manifold:
 
 $$
 \omega = dq \wedge dp
@@ -321,7 +330,9 @@ $$
 X_{\cal{H}}{\cal{H}} = \omega(X_{\cal{H}}, X_{\cal{H}}) = 0
 $$
 
-since $\omega$ is alternating. $\blacksquare$
+since $\omega$ is alternating.
+
+$\blacksquare$
 
 When the Hamiltonian function represents the energy of the system
 being studied then this says that energy remains constant on
@@ -330,35 +341,57 @@ given by the vector field $X_{\cal{H}}$ then $\cal{H}(q_t, p_t) =
 \cal{H}(\phi_t(q_0, p_0)) = \cal{H}(q_0, p_0)$.
 
 Thus it makes sense to look for numeric methods which maintain this
-invariant.
+invariant, that is methods which preserve the symplectic 2-form.
 
-```{.dia width='800'}
-illustrateBezier c0 c1 c2 c3 x2 x3
-    = endpt  # translate x3
-    <> l3a
-    <> fromSegments [bezier3 c3 c0 x3, bezier3 c1 c2 x2]
-  where
-    dashed  = dashing [0.1,0.1] 0
-    endpt   = circle 0.05 # fc red  # lw 0
-    l3a     = fromOffsets [r2 (1, 2)] # translate (r2 (1, 1)) # dashed
+**Definition**
 
-x2      = r2 (3,-1) :: R2         -- endpoint
-x3      = r2 (1, 1) :: R2         -- endpoint
-[c0,c1,c2,c3,c4] = map r2 [(-1, -3), (1,2), (2,0), (-3,0), (-1, -2)]   -- control points
-
-example = illustrateBezier c0 c1 c2 (-c2) x2 x3
-dia = example
-```
-
-
-Hamiltonian Vector Fields
--------------------------
-
-In co-ordinates we have:
+A diffeomorphsim between two symplectic manifolds $f : (M, \mu)
+\longrightarrow (M, \nu)$ is a symplectomorphism if
 
 $$
-\omega\bigg(\frac{\partial}{\partial x_i}, \frac{\partial}{\partial x_j}\bigg) = d\xi^i \wedge dx^i\bigg(\frac{\partial}{\partial x_i}, \frac{\partial}{\partial x_j}\bigg) = d\xi^i\bigg(\frac{\partial}{\partial x_i}\bigg)dx^i\bigg(\frac{\partial}{\partial x_j}\bigg) - d\xi^i\bigg(\frac{\partial}{\partial x_j}\bigg)dx^i\bigg(\frac{\partial}{\partial x_i}\bigg) = 0
+f^*\nu = \mu
 $$
+
+$\blacksquare$
+
+In co-ordinates, we have
+
+$$
+\begin{aligned}
+f^*(dq \wedge dp) &= (\frac{\partial f_q}{\partial q} dq + \frac{\partial f_q}{\partial p} dp)
+                     \wedge
+                     (\frac{\partial f_p}{\partial q} dq + \frac{\partial f_p}{\partial p} dp) \\
+                  &= (\frac{\partial f_q}{\partial q}\frac{\partial f_p}{\partial p} -
+                      \frac{\partial f_p}{\partial q}\frac{\partial f_q}{\partial p})dq \wedge dp \\
+                  &= dq \wedge dp
+\end{aligned}
+$$
+
+Or in matrix form
+
+$$
+{\begin{bmatrix}
+\frac{\partial f_q}{\partial q} & \frac{\partial f_q}{\partial p} \\
+\frac{\partial f_p}{\partial q} & \frac{\partial f_p}{\partial p}
+\end{bmatrix}}^\top
+\,
+\begin{bmatrix}
+ 0 & 1 \\
+-1 & 0
+\end{bmatrix}
+\,
+\begin{bmatrix}
+\frac{\partial f_q}{\partial q} & \frac{\partial f_q}{\partial p} \\
+\frac{\partial f_p}{\partial q} & \frac{\partial f_p}{\partial p}
+\end{bmatrix}
+=
+\begin{bmatrix}
+ 0 & 1 \\
+-1 & 0
+\end{bmatrix}
+$$
+
+We now check that the symplectic Euler method satisfies this.
 
 Symplectic Euler
 ----------------
@@ -1129,6 +1162,24 @@ cotangent bundle has a canonical symplectic 2-form and hence is a
 symplectic manifold.
 
 *Proof*
+
+```{.dia width='800'}
+illustrateBezier c0 c1 c2 c3 x2 x3
+    = endpt  # translate x3
+    <> l3a
+    <> fromSegments [bezier3 c3 c0 x3, bezier3 c1 c2 x2]
+  where
+    dashed  = dashing [0.1,0.1] 0
+    endpt   = circle 0.05 # fc red  # lw 0
+    l3a     = fromOffsets [r2 (1, 2)] # translate (r2 (1, 1)) # dashed
+
+x2      = r2 (3,-1) :: R2         -- endpoint
+x3      = r2 (1, 1) :: R2         -- endpoint
+[c0,c1,c2,c3,c4] = map r2 [(-1, -3), (1,2), (2,0), (-3,0), (-1, -2)]   -- control points
+
+example = illustrateBezier c0 c1 c2 (-c2) x2 x3
+dia = example
+```
 
 Let $\pi : T^* M \longrightarrow M$ be the projection function from
 the cotangent bundle to the base manifold, that is, $\pi(x,\xi) =
