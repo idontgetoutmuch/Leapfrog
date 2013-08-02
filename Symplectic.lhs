@@ -21,10 +21,11 @@ the Hamiltonian formulation of classical mechanics, symplectic
 manifolds and symplectic (numerical) methods.
 
 The reader interested in the Haskell implementations and performance
-comparisons with other programming languages can read the introduction
-and skip to ????. I apologise in advance to experts in classical
-mechanics, symplectic geometery and numerical analysis and can only
-hope I have not traduced their subjects too much.
+comparisons with other programming languages can read the
+[introduction](#Introduction) and skip to the section on
+[performance](#Performance). I apologise in advance to experts in
+classical mechanics, symplectic geometery and numerical analysis and
+can only hope I have not traduced their subjects too much.
 
 Introduction
 ============
@@ -293,7 +294,9 @@ In order to this and without proof let us record the following fact.
 
 Let $(M, \omega)$ be a symplectic manifold. Then there exists a
 bundle isomorphism $\tilde{\omega} : TM \longrightarrow T^*M$ defined
-by $\tilde{\omega}(X_p)(Y_p) = \omega_p(X_p, Y_p)$. $\blacksquare$
+by $\tilde{\omega}(X_p)(Y_p) = \omega_p(X_p, Y_p)$.
+
+$\blacksquare$
 
 This is analagous to the isomorphism one can derive in a (semi)
 Riemannian manifold with the metric in some sense playing the role of
@@ -570,7 +573,8 @@ $$
 Repa Implementation
 -------------------
 
-> stepPositionP :: forall a b c m . ( Monad m
+> stepPositionP :: forall a b c m .
+>                  ( Monad m
 >                  , Source a Double
 >                  , Source b Double
 >                  , Source c Double
@@ -589,7 +593,8 @@ Repa Implementation
 >       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >       ms2 = extend (Any :. j) ms
 
-> stepMomentumP :: forall a b c m . ( Monad m
+> stepMomentumP :: forall a b c m .
+>                  ( Monad m
 >                  , Source a Double
 >                  , Source b Double
 >                  , Source c Double
