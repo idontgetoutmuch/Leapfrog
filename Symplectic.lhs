@@ -182,6 +182,9 @@ ensures we don't go over the top.
 > runEE :: Double -> Double -> [(Double, Double)]
 > runEE initP initTheta = iterate (uncurry (stepOnceEE m l)) (initP, initTheta)
 
+> pendulumEE :: [(Double, Double)]
+> pendulumEE = runEE initP initTheta
+
 The diagram below plots the position of the pendulum (the angle it
 makes with the vertical) against momentum, both axes normalised so
 that the maximum position and momentum are 1.0. We would expect that
@@ -230,6 +233,12 @@ new momentum.
 >   where
 >     newP = stepMomentum m l p q
 >     newQ = stepPosition m l newP q
+
+> runSE :: Double -> Double -> [(Double, Double)]
+> runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
+
+> pendulumSE :: [(Double, Double)]
+> pendulumSE = runSE initP initTheta
 
 The diagram below plots the position of the pendulum (the angle it
 makes with the vertical) against momentum, both axes normalised so
@@ -525,13 +534,6 @@ preserve areas. Thus the path traversed is not an integral curve of
 the Hamiltonian vector field. We can see this in the diagram: the path
 spirals outwards. More details and examples can be found in
 [@IAUS:152:407Y; @Cross:2005:SIOC].
-
-> runSE :: Double -> Double -> [(Double, Double)]
-> runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
-
-> pendulumSE, pendulumEE :: [(Double, Double)]
-> pendulumSE = runSE initP initTheta
-> pendulumEE = runEE initP initTheta
 
 Planetary Motion
 ================
