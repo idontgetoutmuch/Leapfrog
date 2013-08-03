@@ -606,7 +606,7 @@ Repa Implementation
 >                  Array c DIM2 Double ->
 >                  m (Array U DIM2 Double)
 > stepMomentumP gConst h qs ms ps =
->   do fs <- sumP $ transpose $ zeroDiags' fss
+>   do fs <- sumP $ transpose $ zeroDiags fss
 >      newPs <- computeP $ ps +^ (fs *^ dt2)
 >      return newPs
 >   where
@@ -623,6 +623,13 @@ Repa Implementation
 >     fss = is *^ preFs
 >     Z :.i :. _j :. k = extent fss
 >     dt2              = extend (Any :. i :. k) $ fromListUnboxed Z [h]
+>
+>     repDim2to3Outer a = extend (Any :. I.spaceDim) a
+>
+>     zeroDiags x = traverse x id f
+>       where
+>         f _ (Z :. i :. j :. k) | i == j    = 0.0
+>                                | otherwise = x!(Z :. i :. j :. k)
 
 Yarr Implementation
 -------------------
@@ -750,12 +757,6 @@ Yarr Implementation
 >   newQs <- stepPositionP h qs ms newPs
 >   return (newQs, newPs)
 
-> -- FIXME
-> repDim2to3Outer :: forall r e sh.
->                    (Shape sh, Source r e) =>
->                    Array r sh e -> Array D (sh :. Int) e
-> repDim2to3Outer a = extend (Any :. I.spaceDim) a
-
 The gravitational constant in SI units and in the units we use to
 simulate the 5 outermost planets of the solar system: Astronomical
 Units, mass relative to the sun and earth days.
@@ -771,14 +772,6 @@ Units, mass relative to the sun and earth days.
 >   where
 >     f _ (Z :. i :. j) | i == j    = 0.0
 >                       | otherwise = x!(Z :. i :. j)
->
-> zeroDiags' :: Source a Double =>
->               Array a DIM3 Double ->
->               Array D DIM3 Double
-> zeroDiags' x = traverse x id f
->   where
->     f _ (Z :. i :. j :. k) | i == j    = 0.0
->                            | otherwise = x!(Z :. i :. j :. k)
 
 > kineticEnergyP :: Masses -> Momenta-> IO (Array D DIM0 Double)
 > kineticEnergyP ms ps = do
