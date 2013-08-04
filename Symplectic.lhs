@@ -573,6 +573,10 @@ $$
 Repa Implementation
 -------------------
 
+We represent our positions and momenta as 2-dimensional arrays, each
+planet is given a 3-dimensional position vector and a 3-dimensional
+momentum vector.
+
 > stepPositionP :: forall a b c m .
 >                  ( Monad m
 >                  , Source a Double
@@ -592,6 +596,12 @@ Repa Implementation
 >
 >       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >       ms2 = extend (Any :. j) ms
+
+Each planet produces forces on every other planet so we work with
+3-dimsenional arrays and explicitly set the force of a planet on
+itself to zero. Once the forces on each planet have been calculated,
+we sum them to produce a resultant force which we then use to step the
+momentum forward.
 
 > stepMomentumP :: forall a b c m .
 >                  ( Monad m
