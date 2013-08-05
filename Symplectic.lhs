@@ -577,6 +577,9 @@ We represent our positions and momenta as 2-dimensional arrays, each
 planet is given a 3-dimensional position vector and a 3-dimensional
 momentum vector.
 
+> newtype PositionP a = QP { positionP :: Array a DIM2 Double }
+> newtype MomentaP a  = PP { momentaP :: Array a DIM2 Double }
+
 > stepPositionP :: forall a b c m .
 >                  ( Monad m
 >                  , Source a Double
@@ -584,15 +587,15 @@ momentum vector.
 >                  , Source c Double
 >                  ) =>
 >                  Double ->
->                  Array a DIM2 Double ->
+>                  PositionP a ->
 >                  Array b DIM1 Double ->
->                  Array c DIM2 Double ->
->                  m (Array U DIM2 Double)
+>                  MomentaP c ->
+>                  m (PositionP U)
 > stepPositionP h qs ms ps = do
->   do newQs <- computeP $ qs +^ (ps *^ h2 /^ ms2)
->      return newQs
+>   do newQs <- computeP $ (positionP qs) +^ ((momentaP ps) *^ h2 /^ ms2)
+>      return $ QP newQs
 >     where
->       (Z :. i :. j) = extent ps
+>       (Z :. i :. j) = extent $ momentaP ps
 >
 >       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
 >       ms2 = extend (Any :. j) ms
@@ -764,8 +767,8 @@ Yarr Implementation
 >              m (Array U DIM2 Double, Array U DIM2 Double)
 > stepOnceP gConst h ms qs ps = do
 >   newPs <- stepMomentumP gConst h qs ms ps
->   newQs <- stepPositionP h qs ms newPs
->   return (newQs, newPs)
+>   newQs <- stepPositionP h (QP qs) ms (PP newPs)
+>   return (positionP newQs, newPs)
 
 The gravitational constant in SI units and in the units we use to
 simulate the 5 outermost planets of the solar system: Astronomical
