@@ -578,7 +578,8 @@ planet is given a 3-dimensional position vector and a 3-dimensional
 momentum vector.
 
 > newtype PositionP a = QP { positionP :: Array a DIM2 Double }
-> newtype MomentaP a  = PP { momentaP :: Array a DIM2 Double }
+> newtype MomentaP  a = PP { momentaP :: Array a DIM2 Double }
+> newtype MassP     a = MP { massP :: Array a DIM1 Double }
 
 > stepPositionP :: forall a b c m .
 >                  ( Monad m
@@ -588,7 +589,7 @@ momentum vector.
 >                  ) =>
 >                  Double ->
 >                  PositionP a ->
->                  Array b DIM1 Double ->
+>                  MassP b ->
 >                  MomentaP c ->
 >                  m (PositionP U)
 > stepPositionP h qs ms ps = do
@@ -598,7 +599,7 @@ momentum vector.
 >       (Z :. i :. j) = extent $ momentaP ps
 >
 >       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
->       ms2 = extend (Any :. j) ms
+>       ms2 = extend (Any :. j) $ massP ms
 
 Each planet produces forces on every other planet so we work with
 3-dimsenional arrays and explicitly set the force of a planet on
@@ -614,17 +615,17 @@ momentum forward.
 >                  ) =>
 >                  Double ->
 >                  Double ->
->                  Array a DIM2 Double ->
->                  Array b DIM1 Double ->
->                  Array c DIM2 Double ->
->                  m (Array U DIM2 Double)
+>                  PositionP a ->
+>                  MassP b ->
+>                  MomentaP c ->
+>                  m (MomentaP U)
 > stepMomentumP gConst h qs ms ps =
 >   do fs <- sumP $ transpose $ zeroDiags fss
->      newPs <- computeP $ ps +^ (fs *^ dt2)
->      return newPs
+>      newPs <- computeP $ (momentaP ps) +^ (fs *^ dt2)
+>      return $ PP newPs
 >   where
->     is = repDim2to3Outer $ prodPairsMasses ms
->     qDiffs = pointDiffs qs
+>     is = repDim2to3Outer $ prodPairsMasses $ massP ms
+>     qDiffs = pointDiffs $ positionP qs
 >     preDs = Repa.map (^3) $
 >             Repa.map sqrt $
 >             sumS $
@@ -761,23 +762,19 @@ Yarr Implementation
 >              ) =>
 >              Double ->
 >              Double ->
->              Array b DIM1 Double ->
->              Array a DIM2 Double ->
->              Array c DIM2 Double ->
->              m (Array U DIM2 Double, Array U DIM2 Double)
+>              MassP b ->
+>              PositionP a ->
+>              MomentaP c ->
+>              m (PositionP U, MomentaP U)
 > stepOnceP gConst h ms qs ps = do
 >   newPs <- stepMomentumP gConst h qs ms ps
->   newQs <- stepPositionP h (QP qs) ms (PP newPs)
->   return (positionP newQs, newPs)
+>   newQs <- stepPositionP h qs ms newPs
+>   return (newQs, newPs)
 
 The gravitational constant in SI units and in the units we use to
 simulate the 5 outermost planets of the solar system: Astronomical
 Units, mass relative to the sun and earth days.
 
-> type Momenta   = Array U DIM2 Double
-> type Positions = Array U DIM2 Double
-> type Masses    = Array U DIM1 Double
->
 > zeroDiags :: Source a Double =>
 >              Array a DIM2 Double ->
 >              Array D DIM2 Double
@@ -786,22 +783,22 @@ Units, mass relative to the sun and earth days.
 >     f _ (Z :. i :. j) | i == j    = 0.0
 >                       | otherwise = x!(Z :. i :. j)
 
-> kineticEnergyP :: Masses -> Momenta-> IO (Array D DIM0 Double)
+> kineticEnergyP :: MassP U -> MomentaP U -> IO (Array D DIM0 Double)
 > kineticEnergyP ms ps = do
->   preKes <- sumP $ ps *^ ps
->   ke     <- sumP $ preKes /^ ms
+>   preKes <- sumP $ (momentaP ps) *^ (momentaP ps)
+>   ke     <- sumP $ preKes /^ (massP ms)
 >   return $ Repa.map (* 0.5) ke
 >
-> potentialEnergyP :: Double -> Masses -> Positions -> IO (Array U DIM1 Double)
+> potentialEnergyP :: Double -> MassP U -> PositionP U -> IO (Array U DIM1 Double)
 > potentialEnergyP gConst ms qs = do
->   ds2 <- sumP $ Repa.map (^2) $ pointDiffs qs
+>   ds2 <- sumP $ Repa.map (^2) $ pointDiffs $ positionP qs
 >   let ds   = Repa.map sqrt ds2
->       is   = prodPairsMasses ms
+>       is   = prodPairsMasses $ massP ms
 >       pess = zeroDiags $ Repa.map (* (0.5 * negate gConst)) $ is /^ ds
 >   pes <- sumP pess
 >   return pes
 
-> hamiltonianP :: Double -> Masses -> Positions -> Momenta -> IO Double
+> hamiltonianP :: Double -> MassP U -> PositionP U -> MomentaP U -> IO Double
 > hamiltonianP gConst ms qs ps = do
 >   ke <- kineticEnergyP ms ps
 >   pes <- potentialEnergyP gConst ms qs
@@ -890,12 +887,14 @@ The Outer Solar System
 
 > outerPlanets :: [[(Double, Double)]]
 > outerPlanets = runIdentity $ do
->   rsVs <- stepN' 2000 I.gConstAu 100 mosssP qosss posss
->   let ps = Prelude.map fst rsVs
->       xxs = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (0 :: Int))) ps)
->                         [5,0,1,2,3,4]
->       xys = Prelude.map (\i -> Prelude.map (!(Z :. (i :: Int) :. (1 :: Int))) ps)
->                         [5,0,1,2,3,4]
+>   rsVs <- stepN' 2000 I.gConstAu 100 (MP mosssP) (QP qosss) (PP posss)
+>   let qs = Prelude.map fst rsVs
+>       xxs = Prelude.map
+>             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (0 :: Int))) . positionP) qs)
+>             [5,0,1,2,3,4]
+>       xys = Prelude.map
+>             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (1 :: Int))) . positionP) qs)
+>             [5,0,1,2,3,4]
 >   return $ zipWith zip xxs xys
 
     [ghci]
@@ -944,11 +943,11 @@ Performance
 >   opts <- foldl (>>=) (return startOptions) actions
 >   case optYarr opts of
 >     Repa -> do
->       hPre <- hamiltonianP I.gConstAu mosssP qosss posss
+>       hPre <- hamiltonianP I.gConstAu (MP mosssP) (QP qosss) (PP posss)
 >       putStrLn $ show hPre
 >       (qsPost, psPost) <- stepN I.nStepsOuter I.gConstAu I.stepOuter
->                           mosssP qosss posss
->       hPost <- hamiltonianP I.gConstAu mosssP qsPost psPost
+>                           (MP mosssP) (QP qosss) (PP posss)
+>       hPost <- hamiltonianP I.gConstAu (MP mosssP) qsPost psPost
 >       putStrLn $ show hPost
 >     Yarr -> do
 >       ms :: MassesY <- mosssY
@@ -1098,8 +1097,8 @@ For completeness we give the Sun's starting conditions.
 >     (Z :. _i :. j) = extent initVs
 >     ms2 = extend (Any :. j) masses
 
-> initRs :: Array U DIM2 Distance
-> initRs = fromListUnboxed (Z :. nBodies :. I.spaceDim) $ concat xs
+> initQs :: Array U DIM2 Distance
+> initQs = fromListUnboxed (Z :. nBodies :. I.spaceDim) $ concat xs
 >   where
 >     nBodies = length xs
 >     xs = [ [earthX,   earthY,   earthZ]
@@ -1116,19 +1115,18 @@ For completeness we give the Sun's starting conditions.
 >     nBodies = length I.massesTwoPlanets
 
 > stepN :: forall m . Monad m =>
->          Int -> Double -> Double -> Masses -> Positions -> Momenta ->
->          m (Positions, Momenta)
+>          Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
+>          m (PositionP U, MomentaP U)
 > stepN n gConst dt masses = curry updaterMulti
 >   where
 >     updaterMulti = foldr (>=>) return updaters
->     updaters :: [(Positions, Momenta) -> m (Positions, Momenta)]
 >     updaters = replicate n (uncurry (stepOnceP gConst dt masses))
 
 FIXME: Surely this can be as an instance of some nice recursion pattern.
 
 > stepN' :: Monad m =>
->           Int -> Double -> Double -> Masses -> Positions -> Momenta ->
->           m [(Positions, Momenta)]
+>           Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
+>           m [(PositionP U, MomentaP U)]
 > stepN' n gConst dt ms rs vs = do
 >   rsVs <- stepAux n rs vs
 >   return $ (rs, vs) : rsVs
@@ -1143,14 +1141,15 @@ FIXME: Surely this can be as an instance of some nice recursion pattern.
 >                   (Double, Double),
 >                   (Double, Double))]
 > jupiterEarth = runIdentity $ do
->   rsVs <- stepN' I.nStepsOuter I.gConst I.stepTwoPlanets masses initRs initPs
->   let ps = Prelude.map fst rsVs
->       exs = Prelude.map (!(Z :. (0 :: Int) :. (0 :: Int))) ps
->       eys = Prelude.map (!(Z :. (0 :: Int) :. (1 :: Int))) ps
->       jxs = Prelude.map (!(Z :. (1 :: Int) :. (0 :: Int))) ps
->       jys = Prelude.map (!(Z :. (1 :: Int) :. (1 :: Int))) ps
->       sxs = Prelude.map (!(Z :. (2 :: Int) :. (0 :: Int))) ps
->       sys = Prelude.map (!(Z :. (2 :: Int) :. (1 :: Int))) ps
+>   rsVs <- stepN' I.nStepsOuter I.gConst I.stepTwoPlanets
+>                  (MP masses) (QP initQs) (PP initPs)
+>   let qs = Prelude.map fst rsVs
+>       exs = Prelude.map ((!(Z :. (0 :: Int) :. (0 :: Int))) . positionP) qs
+>       eys = Prelude.map ((!(Z :. (0 :: Int) :. (1 :: Int))) . positionP) qs
+>       jxs = Prelude.map ((!(Z :. (1 :: Int) :. (0 :: Int))) . positionP) qs
+>       jys = Prelude.map ((!(Z :. (1 :: Int) :. (1 :: Int))) . positionP) qs
+>       sxs = Prelude.map ((!(Z :. (2 :: Int) :. (0 :: Int))) . positionP) qs
+>       sys = Prelude.map ((!(Z :. (2 :: Int) :. (1 :: Int))) . positionP) qs
 >   return $ zip3 (zip exs eys) (zip jxs jys) (zip sxs sys)
 
 ```{.dia width='600'}
