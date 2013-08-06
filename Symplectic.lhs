@@ -651,8 +651,89 @@ momentum forward.
 >         f _ (Z :. i :. j :. k) | i == j    = 0.0
 >                                | otherwise = x!(Z :. i :. j :. k)
 
+> stepOnceP :: ( Monad m
+>              , Source a Double
+>              , Source b Double
+>              , Source c Double
+>              ) =>
+>              Double ->
+>              Double ->
+>              MassP b ->
+>              PositionP a ->
+>              MomentaP c ->
+>              m (PositionP U, MomentaP U)
+> stepOnceP gConst h ms qs ps = do
+>   newPs <- stepMomentumP gConst h qs ms ps
+>   newQs <- stepPositionP h qs ms newPs
+>   return (newQs, newPs)
+
+
+> kineticEnergyP :: MassP U -> MomentaP U -> IO (Array D DIM0 Double)
+> kineticEnergyP ms ps = do
+>   preKes <- sumP $ (momentaP ps) *^ (momentaP ps)
+>   ke     <- sumP $ preKes /^ (massP ms)
+>   return $ Repa.map (* 0.5) ke
+>
+> potentialEnergyP :: Double -> MassP U -> PositionP U -> IO (Array U DIM1 Double)
+> potentialEnergyP gConst ms qs = do
+>   ds2 <- sumP $ Repa.map (^2) $ pointDiffs $ positionP qs
+>   let ds   = Repa.map sqrt ds2
+>       is   = prodPairsMasses $ massP ms
+>       pess = zeroDiags $ Repa.map (* (0.5 * negate gConst)) $ is /^ ds
+>   pes <- sumP pess
+>   return pes
+>
+>   where
+>
+>     zeroDiags x = traverse x id f
+>       where
+>         f _ (Z :. i :. j) | i == j    = 0.0
+>                           | otherwise = x!(Z :. i :. j)
+
+> hamiltonianP :: Double -> MassP U -> PositionP U -> MomentaP U -> IO Double
+> hamiltonianP gConst ms qs ps = do
+>   ke <- kineticEnergyP ms ps
+>   pes <- potentialEnergyP gConst ms qs
+>   pe  <- sumP pes
+>   te :: Array U DIM0 Double <- computeP $ ke +^ pe
+>   return $ head $ toList te
+
+> prodPairsMasses :: Source a Double =>
+>                    Array a DIM1 Double ->
+>                    Array D DIM2 Double
+> prodPairsMasses ms = ns *^ (transpose ns)
+>
+>   where
+>     (Z :. i) = extent ms
+>     ns = extend (Any :. i :. All) ms
+
+>
+> pointDiffs :: Source a Double =>
+>               Array a DIM2 Double ->
+>               Array D DIM3 Double
+> pointDiffs qs = qss -^ (transposeOuter qss)
+>   where
+>
+>     qss = replicateRows qs
+>
+>     transposeOuter qs = backpermute (f e) f qs
+>       where
+>         e = extent qs
+>         f (Z :. i :. i' :. j) = Z :. i' :. i :. j
+>
+>     replicateRows :: Source a Double =>
+>                      Array a DIM2 Double ->
+>                      Array D DIM3 Double
+>     replicateRows a = extend (Any :. i :. All) a
+>       where (Z :. i :. _j) = extent a
+
 Yarr Implementation
 -------------------
+
+We use [yarr](http://hackage.haskell.org/package/yarr "Hackage")
+represent our positions and momenta as 1-dimensional arrays, each
+planet is given a 3-dimensional position vector and a 3-dimensional
+momentum vector.
 
 > vZero :: VecList N3 Double
 > vZero = V.replicate 0
@@ -675,6 +756,8 @@ Yarr Implementation
 >   where
 >     upd :: PositionY -> Mass -> MomentumY -> PositionY
 >     upd q m p = QY $ V.zipWith (+) (positionY q) (V.map (* (h / m)) (momentumY p))
+
+Note the requirement to fill the forces array with zeros before using it.
 
 > stepMomentumY :: Double ->
 >                  Double ->
@@ -718,8 +801,8 @@ Yarr Implementation
 >   stepMomentumY gConst h qs ms ps
 >   stepPositionY h qs ms ps
 
-> potentialEnergy :: Double -> MassesY -> PositionsY -> IO (ArrayY Double)
-> potentialEnergy gConst ms qs = do
+> potentialEnergyY :: Double -> MassesY -> PositionsY -> IO (ArrayY Double)
+> potentialEnergyY gConst ms qs = do
 >   let nBodies = Y.extent ms
 >   pes :: ArrayY Double <- Y.new nBodies
 >   S.fill (\_ -> return 0.0) (Y.write pes) 0 nBodies
@@ -746,8 +829,8 @@ Yarr Implementation
 >   S.fill (Y.index qs) peFn 0 nBodies
 >   return pes
 
-> kineticEnergy :: MassesY -> MomentaY-> IO Double
-> kineticEnergy ms ps = do
+> kineticEnergyY :: MassesY -> MomentaY-> IO Double
+> kineticEnergyY ms ps = do
 >   let nakedPs = Y.delay $ Y.dmap momentumY ps
 >   let preKes = Y.dmap V.sum $ dzip2 (V.zipWith (*)) nakedPs nakedPs
 >       kes     = dzip2 (/) preKes (Y.delay ms)
@@ -756,95 +839,10 @@ Yarr Implementation
 
 > hamiltonianY :: Double -> MassesY -> PositionsY -> MomentaY-> IO Double
 > hamiltonianY gConst ms qs ps = do
->   ke  <- kineticEnergy ms ps
->   pes <- potentialEnergy gConst ms qs
+>   ke  <- kineticEnergyY ms ps
+>   pes <- potentialEnergyY gConst ms qs
 >   pe  <- W.walk (W.reduceL S.foldl (+)) (return 0) pes
 >   return $ pe + ke
-
-> stepOnceP :: ( Monad m
->              , Source a Double
->              , Source b Double
->              , Source c Double
->              ) =>
->              Double ->
->              Double ->
->              MassP b ->
->              PositionP a ->
->              MomentaP c ->
->              m (PositionP U, MomentaP U)
-> stepOnceP gConst h ms qs ps = do
->   newPs <- stepMomentumP gConst h qs ms ps
->   newQs <- stepPositionP h qs ms newPs
->   return (newQs, newPs)
-
-The gravitational constant in SI units and in the units we use to
-simulate the 5 outermost planets of the solar system: Astronomical
-Units, mass relative to the sun and earth days.
-
-> zeroDiags :: Source a Double =>
->              Array a DIM2 Double ->
->              Array D DIM2 Double
-> zeroDiags x = traverse x id f
->   where
->     f _ (Z :. i :. j) | i == j    = 0.0
->                       | otherwise = x!(Z :. i :. j)
-
-> kineticEnergyP :: MassP U -> MomentaP U -> IO (Array D DIM0 Double)
-> kineticEnergyP ms ps = do
->   preKes <- sumP $ (momentaP ps) *^ (momentaP ps)
->   ke     <- sumP $ preKes /^ (massP ms)
->   return $ Repa.map (* 0.5) ke
->
-> potentialEnergyP :: Double -> MassP U -> PositionP U -> IO (Array U DIM1 Double)
-> potentialEnergyP gConst ms qs = do
->   ds2 <- sumP $ Repa.map (^2) $ pointDiffs $ positionP qs
->   let ds   = Repa.map sqrt ds2
->       is   = prodPairsMasses $ massP ms
->       pess = zeroDiags $ Repa.map (* (0.5 * negate gConst)) $ is /^ ds
->   pes <- sumP pess
->   return pes
-
-> hamiltonianP :: Double -> MassP U -> PositionP U -> MomentaP U -> IO Double
-> hamiltonianP gConst ms qs ps = do
->   ke <- kineticEnergyP ms ps
->   pes <- potentialEnergyP gConst ms qs
->   pe  <- sumP pes
->   te :: Array U DIM0 Double <- computeP $ ke +^ pe
->   return $ head $ toList te
-
-> repDim1To2Outer :: Source a Double =>
->                    Array a DIM1 Double ->
->                    Array D DIM2 Double
-> repDim1To2Outer a = extend (Any :. i :. All) a
->   where (Z :. i) = extent a
-
-> prodPairsMasses :: Source a Double =>
->                    Array a DIM1 Double ->
->                    Array D DIM2 Double
-> prodPairsMasses ms = ns *^ (transpose ns)
->   where
->     ns = repDim1To2Outer ms
-
-> transposeOuter :: Source a Double =>
->               Array a DIM3 Double ->
->               Array D DIM3 Double
-> transposeOuter qs = backpermute (f e) f qs
->   where
->     e = extent qs
->     f (Z :. i :. i' :. j) = Z :. i' :. i :. j
->
-> pointDiffs :: Source a Double =>
->               Array a DIM2 Double ->
->               Array D DIM3 Double
-> pointDiffs qs = qss -^ (transposeOuter qss)
->   where qss = replicateRows qs
->
-> replicateRows :: Source a Double =>
->                  Array a DIM2 Double ->
->                  Array D DIM3 Double
-> replicateRows a = extend (Any :. i :. All) a
->   where (Z :. i :. _j) = extent a
->
 
 The Outer Solar System
 ======================
