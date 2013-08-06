@@ -21,8 +21,8 @@ the Hamiltonian formulation of classical mechanics, symplectic
 manifolds and symplectic (numerical) methods.
 
 The reader interested in the Haskell implementations and performance
-comparisons with other programming languages can read the
-[introduction](#Introduction) and skip to the section on
+comparisons (currently *not* with other programming languages) can
+read the [introduction](#Introduction) and skip to the section on
 [performance](#Performance). I apologise in advance to experts in
 classical mechanics, symplectic geometery and numerical analysis and
 can only hope I have not traduced their subjects too much.
@@ -727,6 +727,29 @@ momentum forward.
 >     replicateRows a = extend (Any :. i :. All) a
 >       where (Z :. i :. _j) = extent a
 
+> stepN :: forall m . Monad m =>
+>          Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
+>          m (PositionP U, MomentaP U)
+> stepN n gConst dt masses = curry updaterMulti
+>   where
+>     updaterMulti = foldr (>=>) return updaters
+>     updaters = replicate n (uncurry (stepOnceP gConst dt masses))
+
+FIXME: Surely this can be as an instance of some nice recursion pattern.
+
+> stepN' :: Monad m =>
+>           Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
+>           m [(PositionP U, MomentaP U)]
+> stepN' n gConst dt ms rs vs = do
+>   rsVs <- stepAux n rs vs
+>   return $ (rs, vs) : rsVs
+>   where
+>     stepAux 0  _  _ = return []
+>     stepAux n rs vs = do
+>       (newRs, newVs) <- stepOnceP gConst dt ms rs vs
+>       rsVs <- stepAux (n-1) newRs newVs
+>       return $ (newRs, newVs) : rsVs
+
 Yarr Implementation
 -------------------
 
@@ -1156,29 +1179,6 @@ For completeness we give the Sun's starting conditions.
 > masses = fromListUnboxed (Z :. nBodies) I.massesTwoPlanets
 >   where
 >     nBodies = length I.massesTwoPlanets
-
-> stepN :: forall m . Monad m =>
->          Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
->          m (PositionP U, MomentaP U)
-> stepN n gConst dt masses = curry updaterMulti
->   where
->     updaterMulti = foldr (>=>) return updaters
->     updaters = replicate n (uncurry (stepOnceP gConst dt masses))
-
-FIXME: Surely this can be as an instance of some nice recursion pattern.
-
-> stepN' :: Monad m =>
->           Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
->           m [(PositionP U, MomentaP U)]
-> stepN' n gConst dt ms rs vs = do
->   rsVs <- stepAux n rs vs
->   return $ (rs, vs) : rsVs
->   where
->     stepAux 0  _  _ = return []
->     stepAux n rs vs = do
->       (newRs, newVs) <- stepOnceP gConst dt ms rs vs
->       rsVs <- stepAux (n-1) newRs newVs
->       return $ (newRs, newVs) : rsVs
 
 > jupiterEarth :: [((Double, Double),
 >                   (Double, Double),
