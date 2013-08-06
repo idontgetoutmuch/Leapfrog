@@ -514,6 +514,8 @@ $$
 
 Thus the symplectic Euler method really is symplectic.
 
+\blacksquare
+
 On the other hand for the explicit Euler for this particular example
 we have
 
@@ -1280,12 +1282,7 @@ $$
 \omega = d\theta = d (\xi_i dx^i) = d\xi^i \wedge dx^i
 $$
 
-Notes
------
-
-Symplectic integrators possess as a conserved quantity a Hamiltonian
-which is slightly perturbed from the original one
-
+\blacksquare
 
 Bibliography
 ------------
