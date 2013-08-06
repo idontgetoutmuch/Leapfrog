@@ -68,7 +68,7 @@ $$
 Then we can re-write the Hamiltonian as:
 
 $$
-\cal{H} = \frac{p^2}{2ml^2} + mgl(1 - \cos\theta)
+\mathbb{H} = \frac{p^2}{2ml^2} + mgl(1 - \cos\theta)
 $$
 
 Applying Hamilton's equations we obtain
@@ -280,7 +280,7 @@ We can think of the evolution of the pendulum as taking place on a
 [manifold](http://en.wikipedia.org/wiki/Manifold "Wikipedia
 definition") $\mathbb{S}^1 \times \mathbb{R}$ where $\mathbb{S}^1$ is
 the 1-dimensional sphere (a circle) since the pendulum's space
-co-ordinate can only take on values $0 \le q \lt 2\pi$.
+co-ordinate can only take on values $0 \le q < 2\pi$.
 
 We can define a
 ([symplectic](https://en.wikipedia.org/wiki/Symplectic_manifold
@@ -964,10 +964,6 @@ length of 100 days.
 
 Plotting the results, we can see that we have a simulation which, as
 we expect, conserves energy.
-
-    [ghci]
-    take 5 (outerPlanets!!0)
-    take 5 (outerPlanets!!1)
 
 ```{.dia width='600'}
 import Symplectic
