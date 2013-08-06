@@ -1022,23 +1022,7 @@ within our control.
 
   [jupiter]: http://en.wikipedia.org/wiki/Jupiter
 
-Kepler's third law states, "The square of the orbital period of a
-planet is directly proportional to the cube of the semi-major axis of
-its orbit". Here it is in mathematical form:
-
-$$
-T^2 = \frac{4 \pi^2 a^3}{GM}
-$$
-
-where $T$ is the period of the orbit, $a$ is the major radius of the
-elliptical orbit (Kepler's first law: "The orbit of every planet is an
-ellipse with the Sun at one of the two foci"), $G$ is the
-gravitational constant and $M$ is the mass of the sun.
-
-From this we can calculate the mean angular velocity: $n = 2\pi / T$.
-
-> nJupiter :: Double
-> nJupiter = sqrt $ I.gConst * I.sunMass / I.jupiterMajRad^3
+Following [@Fitz:Newtonian:Dynamics] we can write Kepler's laws as
 
 $$
 \begin{align*}
@@ -1048,13 +1032,17 @@ GM_{\rm Sun} &= n^2a^3
 \end{align*}
 $$
 
-where $G$ is the gravitational constant, $n = \frac{2\pi}{T}$ is the
-mean angular orbital velocity, $a$ is the major access of the planet's
-ellipse and $e$ is the eccentricity.
+where $T$ is the period of the orbit, $n = 2\pi / T$ is the mean
+angular orbital velocity, $a$ is the major radius of the elliptical
+orbit (Kepler's first law: "The orbit of every planet is an ellipse
+with the Sun at one of the two foci"), $G$ is the gravitational
+constant and $M_{\rm Sun}$ is the mass of the sun and $e$ is the
+eccentricity of a planet's orbit.
 
-Finally we can calculate Jupiter's velocity by assuming that its
-perihelion is on the $x$-axis and that its velocity in the $x$
-direction must be $0$.
+We can calculate the mean angular orbital velocity of Jupiter:
+
+> nJupiter :: Double
+> nJupiter = sqrt $ I.gConst * I.sunMass / I.jupiterMajRad^3
 
 Let us calculate the initial conditions assuming that Jupiter starts
 at its perihelion. The angular velocity at that point is entirely in
@@ -1072,11 +1060,14 @@ $$
 (-v_p \sin(\delta\theta), -v_p \cos(\delta\theta), 0.0) \approx (-v_p\delta\theta, -v_p(1-\delta\theta^2 / 2), 0.0)
 $$
 
-> jupiterThetaDotP :: Double -- radians per second
+In Haskell, we get the following initial conditions:
+
+> jupiterThetaDotP :: Double
 > jupiterThetaDotP = nJupiter *
 >                    I.jupiterMajRad^2 *
 >                    sqrt (1 - I.jupiterEccentrity^2) / I.jupiterPerihelion^2
-> jupiterDeltaThetaP :: Double -- radians
+>
+> jupiterDeltaThetaP :: Double
 > jupiterDeltaThetaP = jupiterThetaDotP * I.stepTwoPlanets / 2
 >
 > jupiterVPeri :: Speed
@@ -1100,11 +1091,12 @@ perihelion on the opposite side of the Sun to Jupiter.
 > nEarth :: Double
 > nEarth = sqrt $ I.gConst * I.sunMass / I.earthMajRad^3
 >
-> earthThetaDotP :: Double -- radians per second
+> earthThetaDotP :: Double
 > earthThetaDotP = nEarth *
 >                  I.earthMajRad^2 *
 >                  sqrt (1 - I.earthEccentrity^2) / I.earthPerihelion^2
-> earthDeltaThetaP :: Double -- radians
+>
+> earthDeltaThetaP :: Double
 > earthDeltaThetaP = earthThetaDotP * I.stepTwoPlanets / 2
 >
 > earthVPeri :: Speed
