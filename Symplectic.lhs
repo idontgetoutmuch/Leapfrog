@@ -27,6 +27,9 @@ comparisons with other programming languages can read the
 classical mechanics, symplectic geometery and numerical analysis and
 can only hope I have not traduced their subjects too much.
 
+Note that we do not make it as far the perihelion of Mercury in this
+article but we do simulate the planets in the outer solar system.
+
 Introduction
 ============
 
@@ -54,7 +57,9 @@ $$
 \cal{H} = \frac{1}{2}ml^2\dot{\theta}^2 + mgl(1 - \cos\theta)
 $$
 
-Let us set the generalized momentum
+Using the Langrangian ${\cal{L}} = T - V$ where $T$ and $V$ are the
+kinetic and potential energies respectively, let us set the
+generalized momentum
 
 $$
 p = \frac{\partial\cal{L}}{\partial\dot{\theta}} = ml^2\dot{\theta}
@@ -573,7 +578,8 @@ $$
 Repa Implementation
 -------------------
 
-We represent our positions and momenta as 2-dimensional arrays, each
+We use [repa](http://hackage.haskell.org/package/repa "Hackage")
+represent our positions and momenta as 2-dimensional arrays, each
 planet is given a 3-dimensional position vector and a 3-dimensional
 momentum vector.
 
