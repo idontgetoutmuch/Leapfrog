@@ -727,6 +727,8 @@ momentum forward.
 >     replicateRows a = extend (Any :. i :. All) a
 >       where (Z :. i :. _j) = extent a
 
+Using the single step udate, we can step as many times as we wish.
+
 > stepN :: forall m . Monad m =>
 >          Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
 >          m (PositionP U, MomentaP U)
@@ -735,12 +737,12 @@ momentum forward.
 >     updaterMulti = foldr (>=>) return updaters
 >     updaters = replicate n (uncurry (stepOnceP gConst dt masses))
 
-FIXME: Surely this can be as an instance of some nice recursion pattern.
+Sometimes we need all the intermediate steps e.g. for plotting.
 
-> stepN' :: Monad m =>
+> stepNs :: Monad m =>
 >           Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
 >           m [(PositionP U, MomentaP U)]
-> stepN' n gConst dt ms rs vs = do
+> stepNs n gConst dt ms rs vs = do
 >   rsVs <- stepAux n rs vs
 >   return $ (rs, vs) : rsVs
 >   where
@@ -920,7 +922,7 @@ length of 100 days.
 
 > outerPlanets :: [[(Double, Double)]]
 > outerPlanets = runIdentity $ do
->   rsVs <- stepN' 2000 I.gConstAu 100 mosssP qosss posss
+>   rsVs <- stepNs 2000 I.gConstAu 100 mosssP qosss posss
 >   let qs = Prelude.map fst rsVs
 >       xxs = Prelude.map
 >             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (0 :: Int))) . positionP) qs)
@@ -1184,7 +1186,7 @@ For completeness we give the Sun's starting conditions.
 >                   (Double, Double),
 >                   (Double, Double))]
 > jupiterEarth = runIdentity $ do
->   rsVs <- stepN' I.nStepsTwoPlanets I.gConst I.stepTwoPlanets
+>   rsVs <- stepNs I.nStepsTwoPlanets I.gConst I.stepTwoPlanets
 >                  masses initQs initPs
 >   let qs = Prelude.map fst rsVs
 >       exs = Prelude.map ((!(Z :. (0 :: Int) :. (0 :: Int))) . positionP) qs
