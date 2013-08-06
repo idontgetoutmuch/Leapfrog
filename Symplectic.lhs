@@ -847,18 +847,21 @@ Note the requirement to fill the forces array with zeros before using it.
 The Outer Solar System
 ======================
 
-> mosssP :: Array U DIM1 Double
-> mosssP = fromListUnboxed (Z :. n) I.massesOuter
+We convert the starting positions and momenta for the planets into
+repa and yarr friendly representations.
+
+> mosssP :: MassP U
+> mosssP = MP $ fromListUnboxed (Z :. n) I.massesOuter
 >   where
 >     n = length I.massesOuter
 >
-> mosssY :: IO (UArray F L S.Dim1 Double)
+> mosssY :: IO MassesY
 > mosssY = YIO.fromList n I.massesOuter
 >   where
 >     n = length I.massesOuter
 >
-> qosss :: Array U DIM2 Double
-> qosss = fromListUnboxed (Z :. n :. I.spaceDim) xs
+> qosss :: PositionP U
+> qosss = QP $ fromListUnboxed (Z :. n :. I.spaceDim) xs
 >   where
 >     xs = concat I.initQsOuter
 >     n  = length xs `div` I.spaceDim
@@ -873,8 +876,8 @@ The Outer Solar System
 >                  ((I.initQsOuter!!i)!!1)
 >                  ((I.initQsOuter!!i)!!2)
 >
-> posss :: Array U DIM2 Double
-> posss = fromListUnboxed (Z :. n :. I.spaceDim) xs
+> posss :: MomentaP U
+> posss = PP $ fromListUnboxed (Z :. n :. I.spaceDim) xs
 >   where
 >     xs = concat I.initPsOuter
 >     n  = length xs `div` I.spaceDim
@@ -889,9 +892,12 @@ The Outer Solar System
 >                  ((I.initPsOuter!!i)!!1)
 >                  ((I.initPsOuter!!i)!!2)
 
+Rather arbitrarily we run the outer planets for 2000 steps with a step
+length of 100 days.
+
 > outerPlanets :: [[(Double, Double)]]
 > outerPlanets = runIdentity $ do
->   rsVs <- stepN' 2000 I.gConstAu 100 (MP mosssP) (QP qosss) (PP posss)
+>   rsVs <- stepN' 2000 I.gConstAu 100 mosssP qosss posss
 >   let qs = Prelude.map fst rsVs
 >       xxs = Prelude.map
 >             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (0 :: Int))) . positionP) qs)
@@ -900,6 +906,9 @@ The Outer Solar System
 >             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (1 :: Int))) . positionP) qs)
 >             [5,0,1,2,3,4]
 >   return $ zipWith zip xxs xys
+
+Plotting the results, we can see that we have a simulation which, as
+we expect, conserves energy.
 
     [ghci]
     take 5 (outerPlanets!!0)
@@ -925,6 +934,8 @@ dia = dia'
 Performance
 ===========
 
+Let's see how repa and yarr perform against each other.
+
 > data YarrOrRepa = Repa | Yarr
 >   deriving Show
 >
@@ -947,11 +958,11 @@ Performance
 >   opts <- foldl (>>=) (return startOptions) actions
 >   case optYarr opts of
 >     Repa -> do
->       hPre <- hamiltonianP I.gConstAu (MP mosssP) (QP qosss) (PP posss)
+>       hPre <- hamiltonianP I.gConstAu mosssP qosss posss
 >       putStrLn $ show hPre
 >       (qsPost, psPost) <- stepN I.nStepsOuter I.gConstAu I.stepOuter
->                           (MP mosssP) (QP qosss) (PP posss)
->       hPost <- hamiltonianP I.gConstAu (MP mosssP) qsPost psPost
+>                           mosssP qosss posss
+>       hPost <- hamiltonianP I.gConstAu mosssP qsPost psPost
 >       putStrLn $ show hPost
 >     Yarr -> do
 >       ms :: MassesY <- mosssY
@@ -965,13 +976,49 @@ Performance
 >       hPost <- hamiltonianY I.gConstAu ms qs ps
 >       putStrLn $ show hPost
 
+
+With 200,000 steps we get the following for repa.
+
+    $ time ./Symplectic
+    -3.215453183208164e-8
+    -3.139737384661333e-8
+
+    real	0m18.400s
+    user	0m18.245s
+    sys	0m0.154s
+
+And a significant speed up with yarr.
+
+    $ time ./Symplectic -Y
+    -3.215453183208164e-8
+    -3.13973738466838e-8
+
+    real	0m0.553s
+    user	0m0.539s
+    sys	0m0.013s
+
+With 2,000,000 steps (about 548,000 years) we get the following with
+yarr.
+
+    $ time ./Symplectic -Y
+    -3.215453183208164e-8
+    -3.2144315777817145e-8
+
+    real	0m5.477s
+    user	0m5.369s
+    sys	0m0.107s
+
+It would be interesting to compare this against a C implementation.
+
 Appendices
 ==========
 
 Appendix A: Jupiter, Earth and Sun
 ----------------------------------
 
-Now we need some initial conditions to start our simulation.
+We need some initial conditions to start our simulation. Instead of
+taking real data, let's make up something which is realistic but
+within our control.
 
   [jupiter]: http://en.wikipedia.org/wiki/Jupiter
 
