@@ -54,15 +54,15 @@ $$
 Thus the Hamiltonian is:
 
 $$
-\cal{H} = \frac{1}{2}ml^2\dot{\theta}^2 + mgl(1 - \cos\theta)
+\mathbb{H} = \frac{1}{2}ml^2\dot{\theta}^2 + mgl(1 - \cos\theta)
 $$
 
-Using the Langrangian ${\cal{L}} = T - V$ where $T$ and $V$ are the
+Using the Langrangian ${\mathbb{L}} = T - V$ where $T$ and $V$ are the
 kinetic and potential energies respectively, let us set the
 generalized momentum
 
 $$
-p = \frac{\partial\cal{L}}{\partial\dot{\theta}} = ml^2\dot{\theta}
+p = \frac{\partial\mathbb{L}}{\partial\dot{\theta}} = ml^2\dot{\theta}
 $$
 
 Then we can re-write the Hamiltonian as:
@@ -75,8 +75,8 @@ Applying Hamilton's equations we obtain
 
 $$
 \begin{aligned}
-\dot{\theta} &=  \frac{\partial\cal{H}}{\partial p}      = \frac{p}{ml^2} \\
-\dot{p}      &= -\frac{\partial\cal{H}}{\partial \theta} = -mgl\sin\theta
+\dot{\theta} &=  \frac{\partial\mathbb{H}}{\partial p}      = \frac{p}{ml^2} \\
+\dot{p}      &= -\frac{\partial\mathbb{H}}{\partial \theta} = -mgl\sin\theta
 \end{aligned}
 $$
 
@@ -186,7 +186,8 @@ ensures we don't go over the top.
 > initP        = m * l^2 * initThetaDot
 
 > runEE :: Double -> Double -> [(Double, Double)]
-> runEE initP initTheta = iterate (uncurry (stepOnceEE m l)) (initP, initTheta)
+> runEE initP initTheta = iterate (uncurry (stepOnceEE m l))
+>                                 (initP, initTheta)
 
 > pendulumEE :: [(Double, Double)]
 > pendulumEE = runEE initP initTheta
@@ -241,7 +242,8 @@ new momentum.
 >     newQ = stepPosition m l newP q
 
 > runSE :: Double -> Double -> [(Double, Double)]
-> runSE initP initTheta = iterate (uncurry (stepOnce m l)) (initP, initTheta)
+> runSE initP initTheta = iterate (uncurry (stepOnce m l))
+>                                 (initP, initTheta)
 
 > pendulumSE :: [(Double, Double)]
 > pendulumSE = runSE initP initTheta
@@ -278,7 +280,7 @@ We can think of the evolution of the pendulum as taking place on a
 [manifold](http://en.wikipedia.org/wiki/Manifold "Wikipedia
 definition") $\mathbb{S}^1 \times \mathbb{R}$ where $\mathbb{S}^1$ is
 the 1-dimensional sphere (a circle) since the pendulum's space
-co-ordinate can only take on values $0 \leq q \lt 2\pi$.
+co-ordinate can only take on values $0 \le q \lt 2\pi$.
 
 We can define a
 ([symplectic](https://en.wikipedia.org/wiki/Symplectic_manifold
@@ -291,7 +293,7 @@ $$
 $$
 
 Using this we can now produce a vector field from the Hamiltonian:
-$\cal{H} : \mathbb{S}^1 \times \mathbb{R} \longrightarrow \mathbb{R}$
+$\mathbb{H} : \mathbb{S}^1 \times \mathbb{R} \longrightarrow \mathbb{R}$
 
 In order to this and without proof let us record the following fact.
 
@@ -314,23 +316,23 @@ We assume the Hamiltonian to be a smooth function. We can form the
 We have
 
 $$
-d\cal{H} = \frac{\partial{\cal{H}}}{\partial q}dq +
-           \frac{\partial{\cal{H}}}{\partial p}dp
+d\mathbb{H} = \frac{\partial{\mathbb{H}}}{\partial q}dq +
+           \frac{\partial{\mathbb{H}}}{\partial p}dp
 $$
 
 Thus the corresponding vector field is given by
 
 $$
-X_\cal{H} =  \frac{\partial{\cal{H}}}{\partial q}\frac{\partial}{\partial q} -
-             \frac{\partial{\cal{H}}}{\partial p}\frac{\partial}{\partial p}
+X_\mathbb{H} =  \frac{\partial{\mathbb{H}}}{\partial q}\frac{\partial}{\partial q} -
+             \frac{\partial{\mathbb{H}}}{\partial p}\frac{\partial}{\partial p}
 $$
 
 The flow of this vector field is the solution to
 
 $$
 \begin{aligned}
-\dot{q} &=  \frac{\partial \cal{H}}{\partial p} \\
-\dot{p} &= -\frac{\partial \cal{H}}{\partial q} \\
+\dot{q} &=  \frac{\partial \mathbb{H}}{\partial p} \\
+\dot{p} &= -\frac{\partial \mathbb{H}}{\partial q} \\
 \end{aligned}
 $$
 
@@ -339,12 +341,12 @@ have regained Hamilton's equations.
 
 **Theorem**
 
-*$\cal{H}$ is constant on flows of $X_\cal{H}$.*
+*$\mathbb{H}$ is constant on flows of $X_\mathbb{H}$.*
 
 *Proof*
 
 $$
-X_{\cal{H}}{\cal{H}} = \omega(X_{\cal{H}}, X_{\cal{H}}) = 0
+X_{\mathbb{H}}{\mathbb{H}} = \omega(X_{\mathbb{H}}, X_{\mathbb{H}}) = 0
 $$
 
 since $\omega$ is alternating.
@@ -354,8 +356,8 @@ $\blacksquare$
 When the Hamiltonian function represents the energy of the system
 being studied then this says that energy remains constant on
 flows. That is, as the system evolves according to the flow $\phi_t$
-given by the vector field $X_{\cal{H}}$ then $\cal{H}(q_t, p_t) =
-\cal{H}(\phi_t(q_0, p_0)) = \cal{H}(q_0, p_0)$.
+given by the vector field $X_{\mathbb{H}}$ then $\mathbb{H}(q_t, p_t) =
+\mathbb{H}(\phi_t(q_0, p_0)) = \mathbb{H}(q_0, p_0)$.
 
 Thus it makes sense to look for numeric methods which maintain this
 invariant, that is methods which preserve the symplectic 2-form.
@@ -554,15 +556,15 @@ distances are expressed in astronomical units, masses are measured
 relative to the sun and time is measured in earth days.
 
 $$
-{\cal H} = \frac{1}{2}\sum_{i=0}^n \frac{p_i^\top p_i}{m_i} - \frac{G}{2}\sum_{i=0}^n\sum_{j \neq i} \frac{m_i m_j}{\|q_i - q_j\|}
+{\mathbb H} = \frac{1}{2}\sum_{i=0}^n \frac{p_i^\top p_i}{m_i} - \frac{G}{2}\sum_{i=0}^n\sum_{j \neq i} \frac{m_i m_j}{\|q_i - q_j\|}
 $$
 
 Applying Hamilton's equations we obtain
 
 $$
 \begin{aligned}
-\dot{q_k^a} &=  \frac{\partial\cal{H}}{\partial p_k^a} = \frac{p_k^a}{m_k} \\
-\dot{p_k^a} &= -\frac{\partial\cal{H}}{\partial q_k^a} = G\sum_{j \neq k}m_k m_i \frac{q_k^a - q_j^a}{\|q_k - q_j\|^3}
+\dot{q_k^a} &=  \frac{\partial\mathbb{H}}{\partial p_k^a} = \frac{p_k^a}{m_k} \\
+\dot{p_k^a} &= -\frac{\partial\mathbb{H}}{\partial q_k^a} = G\sum_{j \neq k}m_k m_i \frac{q_k^a - q_j^a}{\|q_k - q_j\|^3}
 \end{aligned}
 $$
 
@@ -676,7 +678,10 @@ momentum forward.
 >   ke     <- sumP $ preKes /^ (massP ms)
 >   return $ Repa.map (* 0.5) ke
 >
-> potentialEnergyP :: Double -> MassP U -> PositionP U -> IO (Array U DIM1 Double)
+> potentialEnergyP :: Double ->
+>                     MassP U ->
+>                     PositionP U ->
+>                     IO (Array U DIM1 Double)
 > potentialEnergyP gConst ms qs = do
 >   ds2 <- sumP $ Repa.map (^2) $ pointDiffs $ positionP qs
 >   let ds   = Repa.map sqrt ds2
@@ -692,7 +697,11 @@ momentum forward.
 >         f _ (Z :. i :. j) | i == j    = 0.0
 >                           | otherwise = x!(Z :. i :. j)
 
-> hamiltonianP :: Double -> MassP U -> PositionP U -> MomentaP U -> IO Double
+> hamiltonianP :: Double ->
+>                 MassP U ->
+>                 PositionP U ->
+>                 MomentaP U ->
+>                 IO Double
 > hamiltonianP gConst ms qs ps = do
 >   ke <- kineticEnergyP ms ps
 >   pes <- potentialEnergyP gConst ms qs
@@ -732,7 +741,12 @@ momentum forward.
 Using the single step udate, we can step as many times as we wish.
 
 > stepN :: forall m . Monad m =>
->          Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
+>          Int ->
+>          Double ->
+>          Double ->
+>          MassP U ->
+>          PositionP U ->
+>          MomentaP U ->
 >          m (PositionP U, MomentaP U)
 > stepN n gConst dt masses = curry updaterMulti
 >   where
@@ -742,7 +756,12 @@ Using the single step udate, we can step as many times as we wish.
 Sometimes we need all the intermediate steps e.g. for plotting.
 
 > stepNs :: Monad m =>
->           Int -> Double -> Double -> MassP U -> PositionP U -> MomentaP U ->
+>           Int ->
+>           Double ->
+>           Double ->
+>           MassP U ->
+>           PositionP U ->
+>           MomentaP U ->
 >           m [(PositionP U, MomentaP U)]
 > stepNs n gConst dt ms rs vs = do
 >   rsVs <- stepAux n rs vs
@@ -782,7 +801,9 @@ momentum vector.
 >   loadS S.fill (dzip3 upd qs ms ps) qs
 >   where
 >     upd :: PositionY -> Mass -> MomentumY -> PositionY
->     upd q m p = QY $ V.zipWith (+) (positionY q) (V.map (* (h / m)) (momentumY p))
+>     upd q m p = QY $ V.zipWith (+)
+>                 (positionY q)
+>                 (V.map (* (h / m)) (momentumY p))
 
 Note the requirement to fill the forces array with zeros before using it.
 
@@ -814,7 +835,9 @@ Note the requirement to fill the forces array with zeros before using it.
 >         mass <- ms `Y.index` i
 >         S.fill (forceBetween i pos mass) (forceAdd i) 0 nBodies
 >       upd momentum force =
->         PY $ V.zipWith (+) (momentumY momentum) (V.map (\f -> f * h) force)
+>         PY $ V.zipWith (+)
+>         (momentumY momentum)
+>         (V.map (\f -> f * h) force)
 >   S.fill (Y.index qs) force 0 nBodies
 >   loadS S.fill (dzip2 upd ps fs) ps
 
@@ -828,7 +851,10 @@ Note the requirement to fill the forces array with zeros before using it.
 >   stepMomentumY gConst h qs ms ps
 >   stepPositionY h qs ms ps
 
-> potentialEnergyY :: Double -> MassesY -> PositionsY -> IO (ArrayY Double)
+> potentialEnergyY :: Double ->
+>                     MassesY ->
+>                     PositionsY ->
+>                     IO (ArrayY Double)
 > potentialEnergyY gConst ms qs = do
 >   let nBodies = Y.extent ms
 >   pes :: ArrayY Double <- Y.new nBodies
@@ -927,10 +953,12 @@ length of 100 days.
 >   rsVs <- stepNs 2000 I.gConstAu 100 mosssP qosss posss
 >   let qs = Prelude.map fst rsVs
 >       xxs = Prelude.map
->             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (0 :: Int))) . positionP) qs)
+>             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (0 :: Int))) .
+>                                 positionP) qs)
 >             [5,0,1,2,3,4]
 >       xys = Prelude.map
->             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (1 :: Int))) . positionP) qs)
+>             (\i -> Prelude.map ((!(Z :. (i :: Int) :. (1 :: Int))) .
+>                                 positionP) qs)
 >             [5,0,1,2,3,4]
 >   return $ zipWith zip xxs xys
 
@@ -975,7 +1003,8 @@ Let's see how repa and yarr perform against each other.
 >
 > options :: [OptDescr (Options -> IO Options)]
 > options = [
->   Option ['Y'] ["yarr"] (NoArg (\opt -> return opt { optYarr = Yarr })) "Use yarr"
+>   Option ['Y'] ["yarr"] (NoArg (\opt -> return opt { optYarr = Yarr }))
+>          "Use yarr"
 >   ]
 
 > main :: IO ()
@@ -1052,11 +1081,11 @@ within our control.
 Following [@Fitz:Newtonian:Dynamics] we can write Kepler's laws as
 
 $$
-\begin{align*}
+\begin{aligned}
 r &= \frac{a(1 - e^2)}{1 - e\cos\theta} \\
 r^2\dot{\theta} &= \sqrt{(1 - e^2)}na^2 \\
 GM_{\rm Sun} &= n^2a^3
-\end{align*}
+\end{aligned}
 $$
 
 where $T$ is the period of the orbit, $n = 2\pi / T$ is the mean
@@ -1090,9 +1119,10 @@ $$
 In Haskell, we get the following initial conditions:
 
 > jupiterThetaDotP :: Double
-> jupiterThetaDotP = nJupiter *
->                    I.jupiterMajRad^2 *
->                    sqrt (1 - I.jupiterEccentrity^2) / I.jupiterPerihelion^2
+> jupiterThetaDotP =
+>   nJupiter *
+>   I.jupiterMajRad^2 *
+>   sqrt (1 - I.jupiterEccentrity^2) / I.jupiterPerihelion^2
 >
 > jupiterDeltaThetaP :: Double
 > jupiterDeltaThetaP = jupiterThetaDotP * I.stepTwoPlanets / 2
@@ -1191,12 +1221,18 @@ For completeness we give the Sun's starting conditions.
 >   rsVs <- stepNs I.nStepsTwoPlanets I.gConst I.stepTwoPlanets
 >                  masses initQs initPs
 >   let qs = Prelude.map fst rsVs
->       exs = Prelude.map ((!(Z :. (0 :: Int) :. (0 :: Int))) . positionP) qs
->       eys = Prelude.map ((!(Z :. (0 :: Int) :. (1 :: Int))) . positionP) qs
->       jxs = Prelude.map ((!(Z :. (1 :: Int) :. (0 :: Int))) . positionP) qs
->       jys = Prelude.map ((!(Z :. (1 :: Int) :. (1 :: Int))) . positionP) qs
->       sxs = Prelude.map ((!(Z :. (2 :: Int) :. (0 :: Int))) . positionP) qs
->       sys = Prelude.map ((!(Z :. (2 :: Int) :. (1 :: Int))) . positionP) qs
+>       exs = Prelude.map ((!(Z :. (0 :: Int) :. (0 :: Int))) .
+>                          positionP) qs
+>       eys = Prelude.map ((!(Z :. (0 :: Int) :. (1 :: Int))) .
+>                          positionP) qs
+>       jxs = Prelude.map ((!(Z :. (1 :: Int) :. (0 :: Int))) .
+>                          positionP) qs
+>       jys = Prelude.map ((!(Z :. (1 :: Int) :. (1 :: Int))) .
+>                          positionP) qs
+>       sxs = Prelude.map ((!(Z :. (2 :: Int) :. (0 :: Int))) .
+>                          positionP) qs
+>       sys = Prelude.map ((!(Z :. (2 :: Int) :. (1 :: Int))) .
+>                          positionP) qs
 >   return $ zip3 (zip exs eys) (zip jxs jys) (zip sxs sys)
 
 Plotting the results we can see a reasonable picture for Jupiter's and
