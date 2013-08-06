@@ -1157,14 +1157,14 @@ For completeness we give the Sun's starting conditions.
 >     (jupiterX, jupiterY, jupiterZ) = jupiterV
 >     (sunX,     sunY,     sunZ)     = sunV
 
-> initPs :: Array U DIM2 Double
-> initPs = runIdentity $ computeP $ ms2 *^ initVs
+> initPs :: MomentaP U
+> initPs = PP $ runIdentity $ computeP $ ms2 *^ initVs
 >   where
 >     (Z :. _i :. j) = extent initVs
->     ms2 = extend (Any :. j) masses
+>     ms2 = extend (Any :. j) (massP masses)
 
-> initQs :: Array U DIM2 Distance
-> initQs = fromListUnboxed (Z :. nBodies :. I.spaceDim) $ concat xs
+> initQs :: PositionP U
+> initQs = QP $ fromListUnboxed (Z :. nBodies :. I.spaceDim) $ concat xs
 >   where
 >     nBodies = length xs
 >     xs = [ [earthX,   earthY,   earthZ]
@@ -1175,8 +1175,8 @@ For completeness we give the Sun's starting conditions.
 >     (jupiterX, jupiterY, jupiterZ) = jupiterR
 >     (sunX,     sunY,     sunZ)     = sunR
 
-> masses :: Array U DIM1 Mass
-> masses = fromListUnboxed (Z :. nBodies) I.massesTwoPlanets
+> masses :: MassP U
+> masses = MP $ fromListUnboxed (Z :. nBodies) I.massesTwoPlanets
 >   where
 >     nBodies = length I.massesTwoPlanets
 
@@ -1184,8 +1184,8 @@ For completeness we give the Sun's starting conditions.
 >                   (Double, Double),
 >                   (Double, Double))]
 > jupiterEarth = runIdentity $ do
->   rsVs <- stepN' I.nStepsOuter I.gConst I.stepTwoPlanets
->                  (MP masses) (QP initQs) (PP initPs)
+>   rsVs <- stepN' I.nStepsTwoPlanets I.gConst I.stepTwoPlanets
+>                  masses initQs initPs
 >   let qs = Prelude.map fst rsVs
 >       exs = Prelude.map ((!(Z :. (0 :: Int) :. (0 :: Int))) . positionP) qs
 >       eys = Prelude.map ((!(Z :. (0 :: Int) :. (1 :: Int))) . positionP) qs
@@ -1194,6 +1194,9 @@ For completeness we give the Sun's starting conditions.
 >       sxs = Prelude.map ((!(Z :. (2 :: Int) :. (0 :: Int))) . positionP) qs
 >       sys = Prelude.map ((!(Z :. (2 :: Int) :. (1 :: Int))) . positionP) qs
 >   return $ zip3 (zip exs eys) (zip jxs jys) (zip sxs sys)
+
+Plotting the results we can see a reasonable picture for Jupiter's and
+Earth's orbits.
 
 ```{.dia width='600'}
 import Symplectic
@@ -1217,24 +1220,6 @@ cotangent bundle has a canonical symplectic 2-form and hence is a
 symplectic manifold.
 
 *Proof*
-
-```{.dia width='800'}
-illustrateBezier c0 c1 c2 c3 x2 x3
-    = endpt  # translate x3
-    <> l3a
-    <> fromSegments [bezier3 c3 c0 x3, bezier3 c1 c2 x2]
-  where
-    dashed  = dashing [0.1,0.1] 0
-    endpt   = circle 0.05 # fc red  # lw 0
-    l3a     = fromOffsets [r2 (1, 2)] # translate (r2 (1, 1)) # dashed
-
-x2      = r2 (3,-1) :: R2         -- endpoint
-x3      = r2 (1, 1) :: R2         -- endpoint
-[c0,c1,c2,c3,c4] = map r2 [(-1, -3), (1,2), (2,0), (-3,0), (-1, -2)]   -- control points
-
-example = illustrateBezier c0 c1 c2 (-c2) x2 x3
-dia = example
-```
 
 Let $\pi : T^* M \longrightarrow M$ be the projection function from
 the cotangent bundle to the base manifold, that is, $\pi(x,\xi) =

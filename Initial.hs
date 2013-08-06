@@ -47,7 +47,7 @@ spaceDim :: Int
 spaceDim = 3
 
 nStepsTwoPlanets :: Int
-nStepsTwoPlanets = 3
+nStepsTwoPlanets = 1000
 
 stepTwoPlanets :: Double
 stepTwoPlanets = 24 * 60 * 60 * 10
