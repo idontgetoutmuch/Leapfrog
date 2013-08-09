@@ -111,7 +111,7 @@ initQs :: [[Double]]
 initQs = [earthQ, jupiterQ, sunQ]
 
 nStepsOuter :: Int
-nStepsOuter = 2000000
+nStepsOuter = 200000
 
 nBodiesOuter :: Int
 nBodiesOuter = length massesOuter
