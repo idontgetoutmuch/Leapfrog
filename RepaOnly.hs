@@ -7,7 +7,6 @@
 {-# LANGUAGE ScopedTypeVariables          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving   #-}
 {-# LANGUAGE TypeOperators                #-}
-{-# LANGUAGE BangPatterns                 #-}
 
 module RepaOnly (
     main
@@ -46,7 +45,7 @@ stepPositionP :: forall a b c m .
                  MassP b ->
                  MomentaP c ->
                  m (PositionP U)
-stepPositionP !h !qs !ms !ps = do
+stepPositionP h qs ms ps = do
   do newQs <- computeP $ (positionP qs) +^ ((momentaP ps) *^ h2 /^ ms2)
      return $ QP newQs
     where
@@ -54,7 +53,6 @@ stepPositionP !h !qs !ms !ps = do
 
       h2  = extend (Any :. i :. j) $ fromListUnboxed Z [h]
       ms2 = extend (Any :. j) $ massP ms
-{-# INLINE stepPositionP #-}
 
 stepMomentumP :: forall a b c m .
                  ( Monad m
@@ -68,7 +66,7 @@ stepMomentumP :: forall a b c m .
                  MassP b ->
                  MomentaP c ->
                  m (MomentaP U)
-stepMomentumP !gConst !h !qs !ms !ps =
+stepMomentumP gConst h qs ms ps =
   do fs <- sumP $ transpose $ zeroDiags fss
      newPs <- computeP $ (momentaP ps) +^ (fs *^ dt2)
      return $ PP newPs
@@ -93,7 +91,6 @@ stepMomentumP !gConst !h !qs !ms !ps =
       where
         f _ (Z :. i :. j :. k) | i == j    = 0.0
                                | otherwise = x!(Z :. i :. j :. k)
-{-# INLINE stepMomentumP #-}
 
 stepOnceP :: ( Monad m
              , Source a Double
@@ -106,7 +103,7 @@ stepOnceP :: ( Monad m
              PositionP a ->
              MomentaP c ->
              m (PositionP U, MomentaP U)
-stepOnceP !gConst !h !ms !qs !ps = do
+stepOnceP gConst h ms qs ps = do
   newPs <- stepMomentumP gConst h qs ms ps
   newQs <- stepPositionP h qs ms newPs
   return (newQs, newPs)
@@ -119,7 +116,6 @@ prodPairsMasses ms = ns *^ (transpose ns)
   where
     (Z :. i) = extent ms
     ns = extend (Any :. i :. All) ms
-{-# INLINE prodPairsMasses #-}
 
 pointDiffs :: Source a Double =>
               Array a DIM2 Double ->
@@ -139,7 +135,6 @@ pointDiffs qs = qss -^ (transposeOuter qss)
                      Array D DIM3 Double
     replicateRows a = extend (Any :. i :. All) a
       where (Z :. i :. _j) = extent a
-{-# INLINE pointDiffs #-}
 
 stepN :: forall m . Monad m =>
          Int ->
