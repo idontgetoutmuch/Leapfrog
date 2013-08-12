@@ -9,18 +9,26 @@
 {-# LANGUAGE TypeOperators                #-}
 
 module RepaOnly (
-    outerPlanets
-  , main
+    main
   ) where
 
 import           Data.Array.Repa hiding ((++), zipWith)
 import qualified Data.Array.Repa as Repa
 
 import           Control.Monad
-import           Control.Monad.Identity
 
-import qualified Initial as I
 
+stepOuter :: Double
+stepOuter = 100.0
+
+nStepsOuter :: Int
+nStepsOuter = 200000
+
+spaceDim :: Int
+spaceDim = 3
+
+gConstAu :: Double
+gConstAu = 2.95912208286e-4
 
 newtype PositionP a = QP { positionP :: Array a DIM2 Double }
 newtype MomentaP  a = PP { momentaP :: Array a DIM2 Double }
@@ -77,7 +85,7 @@ stepMomentumP gConst h qs ms ps =
     Z :.i :. _j :. k = extent fss
     dt2              = extend (Any :. i :. k) $ fromListUnboxed Z [h]
 
-    repDim2to3Outer a = extend (Any :. I.spaceDim) a
+    repDim2to3Outer a = extend (Any :. spaceDim) a
 
     zeroDiags x = traverse x id f
       where
@@ -99,44 +107,6 @@ stepOnceP gConst h ms qs ps = do
   newPs <- stepMomentumP gConst h qs ms ps
   newQs <- stepPositionP h qs ms newPs
   return (newQs, newPs)
-
-
-kineticEnergyP :: MassP U -> MomentaP U -> IO (Array D DIM0 Double)
-kineticEnergyP ms ps = do
-  preKes <- sumP $ (momentaP ps) *^ (momentaP ps)
-  ke     <- sumP $ preKes /^ (massP ms)
-  return $ Repa.map (* 0.5) ke
-
-potentialEnergyP :: Double ->
-                    MassP U ->
-                    PositionP U ->
-                    IO (Array U DIM1 Double)
-potentialEnergyP gConst ms qs = do
-  ds2 <- sumP $ Repa.map (^2) $ pointDiffs $ positionP qs
-  let ds   = Repa.map sqrt ds2
-      is   = prodPairsMasses $ massP ms
-      pess = zeroDiags $ Repa.map (* (0.5 * negate gConst)) $ is /^ ds
-  pes <- sumP pess
-  return pes
-
-  where
-
-    zeroDiags x = traverse x id f
-      where
-        f _ (Z :. i :. j) | i == j    = 0.0
-                          | otherwise = x!(Z :. i :. j)
-
-hamiltonianP :: Double ->
-                MassP U ->
-                PositionP U ->
-                MomentaP U ->
-                IO Double
-hamiltonianP gConst ms qs ps = do
-  ke <- kineticEnergyP ms ps
-  pes <- potentialEnergyP gConst ms qs
-  pe  <- sumP pes
-  te :: Array U DIM0 Double <- computeP $ ke +^ pe
-  return $ head $ toList te
 
 prodPairsMasses :: Source a Double =>
                    Array a DIM1 Double ->
@@ -179,60 +149,37 @@ stepN n gConst dt masses = curry updaterMulti
     updaterMulti = foldr (>=>) return updaters
     updaters = replicate n (uncurry (stepOnceP gConst dt masses))
 
-stepNs :: Monad m =>
-          Int ->
-          Double ->
-          Double ->
-          MassP U ->
-          PositionP U ->
-          MomentaP U ->
-          m [(PositionP U, MomentaP U)]
-stepNs n gConst dt ms rs vs = do
-  rsVs <- stepAux n rs vs
-  return $ (rs, vs) : rsVs
-  where
-    stepAux 0  _  _ = return []
-    stepAux n rs vs = do
-      (newRs, newVs) <- stepOnceP gConst dt ms rs vs
-      rsVs <- stepAux (n-1) newRs newVs
-      return $ (newRs, newVs) : rsVs
-
 mosssP :: MassP U
-mosssP = MP $ fromListUnboxed (Z :. n) I.massesOuter
-  where
-    n = length I.massesOuter
+mosssP = MP $ fromListUnboxed (Z :. (6 :: Int))
+         [ 9.54786104043e-4
+         , 2.85583733151e-4
+         , 4.37273164546e-5
+         , 5.17759138449e-5
+         , 7.692307692307693e-9
+         , 1.00000597682
+         ]
 
 qosss :: PositionP U
-qosss = QP $ fromListUnboxed (Z :. n :. I.spaceDim) xs
-  where
-    xs = concat I.initQsOuter
-    n  = length xs `div` I.spaceDim
+qosss = QP $ fromListUnboxed ((Z :. 6) :. 3)
+        [  -3.5023653,-3.8169847,-1.5507963
+        ,   9.0755314,-3.0458353,-1.6483708
+        ,   8.310142,-16.2901086,-7.2521278
+        ,  11.4707666,-25.7294829,-10.8169456
+        , -15.5387357,-25.2225594,-3.1902382
+        ,   0.0,0.0,0.0]
 
 posss :: MomentaP U
-posss = PP $ fromListUnboxed (Z :. n :. I.spaceDim) xs
-  where
-    xs = concat I.initPsOuter
-    n  = length xs `div` I.spaceDim
-
-outerPlanets :: [[(Double, Double)]]
-outerPlanets = runIdentity $ do
-  rsVs <- stepNs 2000 I.gConstAu 100 mosssP qosss posss
-  let qs = Prelude.map fst rsVs
-      xxs = Prelude.map
-            (\i -> Prelude.map ((!(Z :. (i :: Int) :. (0 :: Int))) .
-                                positionP) qs)
-            [5,0,1,2,3,4]
-      xys = Prelude.map
-            (\i -> Prelude.map ((!(Z :. (i :: Int) :. (1 :: Int))) .
-                                positionP) qs)
-            [5,0,1,2,3,4]
-  return $ zipWith zip xxs xys
+posss = PP $ fromListUnboxed ((Z :. 6) :. 3)
+        [  5.398637520229294e-6,-3.938397200566971e-6,-1.8197172878345132e-6
+        ,  4.806888279651002e-7,1.3808687457183727e-6,5.496401644970776e-7
+        ,  1.548725348725732e-7,5.995102540558569e-8,2.4062704971801837e-8
+        ,  1.4959614787206956e-7,5.9297400849148624e-8,2.0543129336240974e-8
+        ,  2.1286538461538464e-11,-1.3130923076923078e-11,-1.0500307692307693e-11
+        ,  0.0,0.0,0.0]
 
 main :: IO ()
 main = do
-  hPre <- hamiltonianP I.gConstAu mosssP qosss posss
-  putStrLn $ show hPre
-  (qsPost, psPost) <- stepN I.nStepsOuter I.gConstAu I.stepOuter
+  (qsPost, psPost) <- stepN nStepsOuter gConstAu stepOuter
                       mosssP qosss posss
-  hPost <- hamiltonianP I.gConstAu mosssP qsPost psPost
-  putStrLn $ show hPost
+  putStrLn $ show $ positionP qsPost
+  putStrLn $ show $ momentaP psPost
