@@ -16,14 +16,12 @@ module RepaOnly (
 import           Data.Array.Repa hiding ((++), zipWith)
 import qualified Data.Array.Repa as Repa
 
-import           Control.Monad
-
 
 stepOuter :: Double
 stepOuter = 100.0
 
 nStepsOuter :: Int
-nStepsOuter = 200000
+nStepsOuter = 2000000
 
 spaceDim :: Int
 spaceDim = 3
@@ -149,10 +147,14 @@ stepN :: forall m . Monad m =>
          PositionP U ->
          MomentaP U ->
          m (PositionP U, MomentaP U)
-stepN n gConst dt masses = curry updaterMulti
+stepN !n !gConst !dt !masses !qs !ps = go n qs ps
   where
-    updaterMulti = foldr (>=>) return updaters
-    updaters = replicate n (uncurry (stepOnceP gConst dt masses))
+    go !i !qs !ps
+      | i == 0
+      = return (qs, ps)
+      | otherwise
+      = do (qs', ps') <- stepOnceP gConst dt masses qs ps
+           go (i - 1) qs' ps'
 {-# INLINE stepN #-}
 
 mosssP :: MassP U
